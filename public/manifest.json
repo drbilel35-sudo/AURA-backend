@@ -28,30 +28,6 @@
     { "src": "/icons/icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ],
 
-  "shortcuts": [
-    {
-      "name": "New Chat",
-      "short_name": "Chat",
-      "description": "Start a new conversation with AURA",
-      "url": "/?command=newchat",
-      "icons": [{ "src": "/icons/shortcut-chat.png", "sizes": "96x96" }]
-    },
-    {
-      "name": "Translate",
-      "short_name": "Translate",
-      "description": "Quick translation mode",
-      "url": "/?command=translate",
-      "icons": [{ "src": "/icons/shortcut-translate.png", "sizes": "96x96" }]
-    },
-    {
-      "name": "Vision Mode",
-      "short_name": "Vision",
-      "description": "Enable camera vision",
-      "url": "/?command=vision",
-      "icons": [{ "src": "/icons/shortcut-vision.png", "sizes": "96x96" }]
-    }
-  ],
-
   "related_applications": [],
   "prefer_related_applications": false
 }
