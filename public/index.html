@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AURA - Humanoid AI Assistant (Enhanced Multimodal)</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Use Inter font family -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d1117; 
+            color: #e2e8f0;
+            /* Ensure full height and prevent body scrolling in mobile view */
+            height: 100vh;
+            overflow: hidden; 
+        }
+
+        /* --- Custom Animations for 'Aliveness' --- */
+        @keyframes breathe {
+            0% { transform: translateY(0) scale(1) rotateX(0deg); opacity: 0.98; }
+            50% { transform: translateY(-1px) scale(1.005) rotateX(0.5deg); opacity: 1; }
+            100% { transform: translateY(0) scale(1) rotateX(0deg); opacity: 0.98; }
+        }
+
+        @keyframes blink-effect {
+            /* Extremely fast scaleY transition for a natural, subtle blink */
+            0% { transform: scaleY(1); }
+            50% { transform: scaleY(0.05); } 
+            100% { transform: scaleY(1); }
+        }
+        
+        /* --- General UI Styles --- */
+        .avatar-container {
+            position: relative;
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 2px solid; 
+            transition: all 0.5s ease-in-out;
+            animation: breathe 5s ease-in-out infinite; 
+        }
+        .avatar-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center;
+            transform-origin: top center; 
+            transition: transform 0.05s ease-in-out, opacity 0.1s ease-in-out; 
+        }
+        
+        /* The class applied during the blink sequence */
+        .blinking {
+            animation: blink-effect 0.05s ease-in-out forwards;
+        }
+        
+        /* New class for subtle image shift when the mouth is 'open' to simulate jaw movement (human-like feature) */
+        .is-speaking-visual {
+            transform: translateY(1px); 
+        }
+
+        /* Emotion Glow Classes */
+        .emotion-neutral-glow { border-color: #00ffff !important; box-shadow: 0 0 20px rgba(0, 255, 255, 0.7); }
+        .emotion-joy-glow { border-color: #ffeb3b !important; box-shadow: 0 0 20px rgba(255, 235, 59, 0.9); }
+        .emotion-interest-glow { border-color: #4caf50 !important; box-shadow: 0 0 20px rgba(76, 175, 80, 0.8); }
+        .emotion-confusion-glow { border-color: #f44369 !important; box-shadow: 0 0 20px rgba(244, 67, 54, 0.8); }
+
+        /* Active Status Animations */
+        .listening-pulse { animation: pulse-border 0.7s infinite alternate; }
+        .speaking-active { 
+            animation: breathe 5s ease-in-out infinite, glow-speak 0.4s infinite alternate; 
+        }
+
+        @keyframes pulse-border {
+            from { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); } 
+            to { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+        }
+        @keyframes glow-speak {
+            from { box-shadow: 0 0 10px rgba(0, 255, 255, 0.9); } 
+            to { box-shadow: 0 0 25px rgba(0, 255, 255, 0.9), 0 0 5px rgba(0, 255, 255, 0.5); }
+        }
+
+        /* Scrollbar and Input Styles */
+        .input-glow:focus { box-shadow: 0 0 0 2px rgba(0, 255, 255, 0.5); border-color: #00ffff; }
+        #output-container::-webkit-scrollbar { width: 8px; }
+        #output-container::-webkit-scrollbar-thumb { background-color: #00ffff; border-radius: 10px; }
+        #output-container::-webkit-scrollbar-track { background-color: #1a202c; }
+        
+        /* Full height on mobile and flexible width */
+        #app {
+            width: 100%;
+            height: 100%;
+            max-width: 900px; /* Increased max width for side-by-side view */
+            position: relative; 
+        }
+        /* Override rounded corners on small screens for app feel */
+        @media (min-width: 640px) {
+            #app {
+                border-radius: 0.75rem; /* sm:rounded-xl */
+                height: 95vh; /* slightly less than full height on desktop */
+                max-height: 800px; /* maximum reasonable height */
+            }
+            /* Vision screen in the new side-by-side layout */
+            #vision-output-screen {
+                 /* Adjust padding/margin for the compact floating window */
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+<body class="p-0 sm:p-8 flex justify-center items-center h-screen">
+
+    <!-- The entire application container must use flex-col and h-screen -->
+    <div id="app" class="bg-[#161b22] text-white shadow-2xl flex flex-col">
+
+        <!-- 1. FIXED TOP SECTION: Avatar, Status, Camera, and Commands -->
+        <div id="fixed-top-section" class="p-6 pb-4 flex flex-col items-center flex-shrink-0 bg-[#161b22] border-b border-cyan-800/50">
+            
+            <!-- Robot Avatar Section -->
+            <div id="avatar-container" class="avatar-container emotion-neutral-glow">
+                <img id="robot-face-img" 
+                     src="https://placehold.co/150x150/0f172a/00ffff?text=AURA+BOT" 
+                     alt="AURA Humanoid Avatar"
+                     onerror="this.onerror=null;this.src='https://placehold.co/150x150/0f172a/00ffff?text=AURA+BOT';"
+                     style="transition: transform 0.05s ease-in-out, opacity 0.1s ease-in-out; transform-origin: top center;"> 
+            </div>
+
+            <h1 class="text-3xl font-extrabold mt-3 text-cyan-300 tracking-wider">A.U.R.A. System</h1>
+            <p class="text-sm text-gray-400">
+                Emotion: <span id="emotion-status-text" class="font-mono text-cyan-400 font-semibold">NEUTRAL</span>
+                | Status: <span id="status-display" class="font-mono text-green-400">LOADING...</span>
+            </p>
+            
+            <!-- Command Section (BELOW THE FACE) -->
+            <div id="command-section" class="mt-4 pt-3 flex justify-around flex-wrap gap-3 w-full max-w-sm">
+                <button onclick="handleCommand('NewChat')" title="Start a New Conversation"
+                    class="flex items-center space-x-1 p-2 bg-blue-700/50 hover:bg-blue-600/70 rounded-lg text-sm font-medium transition duration-200 active:scale-95">
+                    <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                    <span>New Chat</span>
+                </button>
+                <button onclick="handleCommand('Translate')" title="Translate spoken or typed text"
+                    class="flex items-center space-x-1 p-2 bg-green-700/50 hover:bg-green-600/70 rounded-lg text-sm font-medium transition duration-200 active:scale-95">
+                    <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h7"/><path d="M12 5l6 10"/><path d="M16 16l-3.5-7.5"/><path d="M2 17h12"/><path d="M9 22l6-10"/></svg>
+                    <span>Translate</span>
+                </button>
+                <button onclick="handleCommand('Vision')" title="Toggle Robot Vision (Camera Share)"
+                    class="flex items-center space-x-1 p-2 bg-yellow-700/50 hover:bg-yellow-600/70 rounded-lg text-sm font-medium transition duration-200 active:scale-95">
+                    <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/><path d="M1.3 12C3.15 6.45 7.8 3 12 3s8.85 3.45 10.7 9c-1.85 5.55-6.5 9-10.7 9S3.15 17.55 1.3 12Z"/></svg>
+                    <span>Vision</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 2. DUAL INTERACTION AREA: Vision (Left/Top) and Chat (Right/Bottom) -->
+        <!-- Starts as flex-col on mobile, becomes flex-row on small screens and up -->
+        <div id="main-interaction-area" class="flex-1 flex flex-col sm:flex-row overflow-hidden">
+            
+            <!-- 2a. VISION OUTPUT SCREEN (LEFT/TOP COLUMN) -->
+            <!-- Use hidden/flex to control visibility of the whole column -->
+            <div id="vision-output-screen" class="hidden w-full sm:w-1/3 sm:min-w-[200px] sm:max-w-xs p-4 bg-[#161b22] sm:border-r border-cyan-800/50 flex-shrink-0 flex-col overflow-y-auto">
+                <div class="vision-header flex items-center justify-between mb-2">
+                    <label for="camera-toggle" class="flex items-center text-sm font-medium text-cyan-400 cursor-pointer">
+                        <input type="checkbox" id="camera-toggle" class="mr-2 h-4 w-4 text-cyan-500 rounded border-gray-600 bg-gray-800 focus:ring-cyan-500">
+                        Enable Vision
+                    </label>
+                    <span id="camera-status" class="text-xs text-red-500 font-mono">Disabled</span>
+                </div>
+                <!-- Camera Feed -->
+                <video id="camera-feed" class="w-full h-auto rounded-lg hidden border border-gray-600 shadow-lg" autoplay playsinline muted></video>
+                <!-- Hidden canvas for capturing frames -->
+                <canvas id="capture-canvas" class="hidden"></canvas>
+                <div class="mt-4 text-xs text-gray-500">AURA captures an image from this feed for multimodal analysis when you send a command.</div>
+            </div>
+            
+            <!-- 2b. MAIN CHAT OUTPUT (RIGHT/BOTTOM COLUMN) -->
+            <div id="chat-output-wrapper" class="flex-1 flex flex-col p-4 pt-4 pb-0 overflow-hidden">
+                <!-- Scrollable Chat Output -->
+                <div class="flex-1 overflow-y-auto pr-2" id="output-container">
+                    <div id="response-content" class="whitespace-pre-wrap text-sm text-gray-200">
+                        <p class="text-cyan-400 font-medium">AURA_OS v4.4 (Real-time Lip Sync & Side-by-Side Vision Deployed).</p>
+                        <p class="text-yellow-400 font-bold">INSTRUCTION: Please wait while AURA's facial assets load (8 images)...</p>
+                    </div>
+                    <div id="loading-indicator" class="hidden mt-3">
+                        <div class="flex items-center space-x-2 text-cyan-400">
+                            <div class="w-3 h-3 bg-cyan-400 rounded-full animate-bounce"></div>
+                            <div class="w-3 h-3 bg-cyan-400 rounded-full animate-bounce delay-150"></div>
+                            <div class="w-3 h-3 bg-cyan-400 rounded-full animate-bounce delay-300"></div>
+                            <span id="loading-text" class="text-sm">Processing command...</span>
+                        </div>
+                    </div>
+                </div>
+                <!-- Sources Display (Stays above input) -->
+                <div id="sources-display" class="mt-4 pt-3 border-t border-gray-600 hidden">
+                    <p class="text-xs font-semibold text-gray-400 mb-1">Grounding Sources:</p>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- 4. FIXED BOTTOM SECTION: Input Interface (The text section at the bottom) -->
+        <div class="p-6 pt-4 border-t border-cyan-700/50 flex-shrink-0 bg-[#161b22]">
+             <p id="voice-instruction" class="text-xs text-center text-gray-400 mb-2">
+                Tap the Mic (🟢) to record, Stop (🔴) to finish, or Send (🔵) to execute the command.
+            </p>
+            <div class="flex space-x-2">
+                 <input type="text" id="user-input" placeholder="Type your command here..."
+                       class="flex-grow p-3 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none input-glow transition duration-200 disabled:opacity-50"
+                       onkeydown="if(event.key === 'Enter') simulateInteraction()">
+
+                <!-- Mic/Stop/Send Button -->
+                <button onclick="handleMicButton()" id="mic-button"
+                        class="h-12 w-12 flex-shrink-0 bg-green-600 hover:bg-green-500 text-white p-2 rounded-lg transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center">
+                    <!-- Initial icon: Microphone -->
+                    <svg id="mic-icon" class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2h-2v2a9 9 0 008 8.94V23h2v-2.06A9 9 0 0021 12v-2h-2z"/></svg>
+                    <!-- Stop icon (Hidden by default) -->
+                    <svg id="stop-icon" class="w-6 h-6 hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
+                    <!-- Paper Plane icon (Hidden by default) -->
+                    <svg id="send-icon-mic" class="w-6 h-6 hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                </button>
+            </div>
+           
+            <button onclick="simulateInteraction()" id="send-button"
+                    class="w-full mt-3 bg-cyan-600 hover:bg-cyan-500 text-black font-bold py-3 rounded-lg transition duration-300 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                <span>SEND TEXT COMMAND</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // NOTE: The API key is left as an empty string. The Canvas environment will securely inject it during runtime.
+        const API_LLM_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent';
+        const API_TTS_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent';
+        const apiKey = ""; 
+        const MAX_RETRIES = 5;
+        const INITIAL_BACKOFF = 1000; 
+        
+        let audioContext = null; 
+        let isSpeaking = false; 
+        let interactionTriggered = false; 
+        let currentEmotion = 'NEUTRAL'; 
+        
+        // This threshold determines how loud the audio must be to trigger the mouth-open image.
+        const VOLUME_THRESHOLD = 5; 
+        
+        // --- Image Caching Variables ---
+        let imageCache = {}; 
+        let isCacheReady = false; 
+        
+        // --- DOM Elements ---
+        const appContainer = document.getElementById('app');
+        const inputField = document.getElementById('user-input');
+        const sendButton = document.getElementById('send-button');
+        const micButton = document.getElementById('mic-button');
+        const micIcon = document.getElementById('mic-icon');
+        const stopIcon = document.getElementById('stop-icon');
+        const sendIconMic = document.getElementById('send-icon-mic');
+        const responseContent = document.getElementById('response-content');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const loadingText = document.getElementById('loading-text');
+        const statusDisplay = document.getElementById('status-display');
+        const sourcesDisplay = document.getElementById('sources-display');
+        const outputContainer = document.getElementById('output-container');
+        const avatarContainer = document.getElementById('avatar-container');
+        const robotFaceImg = document.getElementById('robot-face-img');
+        const emotionStatusText = document.getElementById('emotion-status-text');
+        
+        // --- Camera Elements ---
+        const visionOutputScreen = document.getElementById('vision-output-screen');
+        const video = document.getElementById('camera-feed');
+        const canvas = document.getElementById('capture-canvas');
+        const cameraToggle = document.getElementById('camera-toggle');
+        const cameraStatus = document.getElementById('camera-status');
+        let videoStream = null;
+
+        
+        // --- Emotion Image Maps (Mouth Closed vs. Mouth Open) ---
+        // Using static image URLs from the prompt for consistency and caching
+        const BASE_PROMPT = 'Elegant%20female%20humanoid%20AI,%20photorealistic,high%20detail,%20cyberpunk,';
+        const BASE_SUFFIX = ',%20subtle%20cyan%20glowing%20lines';
+
+        // Images used when the robot is NOT speaking (mouth closed)
+        const defaultImageMap = {
+            'NEUTRAL': `https://image.pollinations.ai/prompt/${BASE_PROMPT}%20neutral%20expression${BASE_SUFFIX}`,
+            'JOY': `https://image.pollinations.ai/prompt/${BASE_PROMPT}%20wide%20gentle%20smile,%20joyful%20expression${BASE_SUFFIX}`,
+            'INTEREST': `https://image.pollinations.ai/prompt/${BASE_PROMPT}%20focused%20eyes,%20slightly%20raised%20eyebrows,%20interested%20expression${BASE_SUFFIX}`,
+            'CONFUSION': `https://image.pollinations.ai/prompt/${BASE_PROMPT}%20slight%20frown,%20puzzled%20expression${BASE_SUFFIX}`
+        };
+
+        // Images used when the robot IS speaking (mouth slightly open)
+        const speakingImageMap = {
+            'NEUTRAL': `https://image.pollinations.ai/prompt/${BASE_PROMPT}%20neutral%20expression,mouth%20slightly%20open${BASE_SUFFIX}`,
+            'JOY': `https://image.pollinations.ai/prompt/${BASE_PROMPT}%20wide%20gentle%20smile,%20joyful%20expression,mouth%20slightly%20open${BASE_SUFFIX}`,
+            'INTEREST': `https://image.pollinations.ai/prompt/${BASE_PROMPT}%20focused%20eyes,%20slightly%20raised%20eyebrows,%20interested%20expression,mouth%20slightly%20open${BASE_SUFFIX}`,
+            'CONFUSION': `https://image.pollinations.ai/prompt/${BASE_PROMPT}%20slight%20frown,%20puzzled%20expression,mouth%20slightly%20open${BASE_SUFFIX}`
+        };
+        
+        // --- Configuration & Helpers ---
+        const systemPrompt = "You are AURA, an advanced AI Humanoid Assistant. Before your response, you MUST prepend an emotion tag. Choose the most appropriate tag from: [EMOTION: NEUTRAL], [EMOTION: JOY], [EMOTION: INTEREST], or [EMOTION: CONFUSION]. Example: [EMOTION: JOY] That is a fantastic question! Now, provide your concise, professional, and helpful answer. If the user provides an image, analyze it and describe what you see before answering the question.";
+        const EMOTION_REGEX = /\[EMOTION: (NEUTRAL|JOY|INTEREST|CONFUSION)\]/i;
+        
+        /**
+         * Preloads all 8 avatar images into the cache for flicker-free lip-sync.
+         */
+        async function preloadImages() {
+             loadingText.textContent = 'Preloading 8 AI face assets...';
+             updateStatus('LOADING');
+             
+             const preloadPromises = [];
+             
+             const allUrls = [
+                 { key: 'NEUTRAL_CLOSED', url: defaultImageMap['NEUTRAL'] },
+                 { key: 'JOY_CLOSED', url: defaultImageMap['JOY'] },
+                 { key: 'INTEREST_CLOSED', url: defaultImageMap['INTEREST'] },
+                 { key: 'CONFUSION_CLOSED', url: defaultImageMap['CONFUSION'] },
+                 { key: 'NEUTRAL_OPEN', url: speakingImageMap['NEUTRAL'] },
+                 { key: 'JOY_OPEN', url: speakingImageMap['JOY'] },
+                 { key: 'INTEREST_OPEN', url: speakingImageMap['INTEREST'] },
+                 { key: 'CONFUSION_OPEN', url: speakingImageMap['CONFUSION'] }
+             ];
+
+             for (const item of allUrls) {
+                 preloadPromises.push(new Promise((resolve, reject) => {
+                     const img = new Image();
+                     img.onload = () => {
+                         // Store the URL in the cache. Browsers will use the cached image data for subsequent lookups.
+                         imageCache[item.key] = item.url; 
+                         resolve();
+                     };
+                     img.onerror = () => {
+                         console.warn(`Failed to load image for ${item.key}: ${item.url}. Using dynamic load.`);
+                         // In case of error, we store the original URL and resolve, so the app can continue.
+                         imageCache[item.key] = item.url;
+                         resolve();
+                     };
+                     img.src = item.url;
+                 }));
+             }
+
+             await Promise.allSettled(preloadPromises);
+             isCacheReady = true;
+             console.log("Image cache ready.");
+        }
+        
+        // --- Initialization (Runs once after page load) ---
+        document.addEventListener('DOMContentLoaded', async () => {
+             // 1. Preload Images
+             await preloadImages(); 
+             
+             // 2. Finalize UI
+             updateStatus('READY');
+             // Use the pre-cached URL if available, otherwise fallback
+             robotFaceImg.src = imageCache['NEUTRAL_CLOSED'] || defaultImageMap['NEUTRAL']; 
+             setUIToReady();
+             simulateBlink();
+             outputContainer.scrollTop = outputContainer.scrollHeight;
+             
+             // 3. Setup Camera Listeners
+             cameraToggle.addEventListener('change', toggleCamera);
+             
+             document.getElementById('response-content').innerHTML += `<p class="text-green-400 font-bold text-xs">AURA is initialized. Ready for command.</p>`;
+        }); 
+
+        // Base64 to ArrayBuffer utility
+        function base64ToArrayBuffer(base64) {
+            const binaryString = atob(base64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        /**
+         * Converts 16-bit signed PCM raw data into a standard Web Audio API AudioBuffer
+         */
+        function pcmToAudioBuffer(pcm16, sampleRate) {
+            if (!audioContext) {
+                 throw new Error("AudioContext is not initialized.");
+            }
+            const audioBuffer = audioContext.createBuffer(1, pcm16.length, sampleRate);
+            const outputData = audioBuffer.getChannelData(0);
+            for (let i = 0; i < pcm16.length; i++) {
+                // Normalize 16-bit signed integer (range -32768 to 32767) to floating point (-1 to 1)
+                outputData[i] = pcm16[i] / 32767.0; 
+            }
+            return audioBuffer;
+        }
+
+        // --- Simulated Animation (Blink) ---
+        function simulateBlink() {
+            if (isSpeaking) {
+                 setTimeout(simulateBlink, 1000); 
+                 return;
+            } 
+
+            const delay = Math.random() * 5000 + 3000; 
+
+            setTimeout(() => {
+                if (!isSpeaking) {
+                    robotFaceImg.classList.add('blinking');
+                    
+                    setTimeout(() => {
+                        robotFaceImg.classList.remove('blinking');
+                        simulateBlink(); 
+                    }, 50); 
+                } else {
+                    // Check again later if we are still speaking
+                    simulateBlink(); 
+                }
+            }, delay);
+        }
+
+        // --- UI Update Functions ---
+
+        function updateStatus(newStatus, emotion = currentEmotion) {
+            currentEmotion = emotion.toUpperCase(); 
+            statusDisplay.textContent = newStatus;
+            
+            statusDisplay.classList.remove('text-green-400', 'text-yellow-400', 'text-red-400', 'text-cyan-400', 'text-gray-400');
+            avatarContainer.classList.remove('listening-pulse', 'speaking-active');
+
+            if (newStatus === 'ONLINE' || newStatus === 'READY') {
+                statusDisplay.classList.add('text-green-400');
+                if (!isSpeaking) updateAvatarImage(currentEmotion, false);
+            } else if (newStatus === 'LOADING') {
+                 statusDisplay.classList.add('text-gray-400');
+            } else if (newStatus === 'LISTENING') {
+                statusDisplay.classList.add('text-yellow-400');
+                avatarContainer.classList.add('listening-pulse');
+            } else if (newStatus === 'PROCESSING') {
+                statusDisplay.classList.add('text-cyan-400');
+            } else if (newStatus === 'SPEAKING') {
+                statusDisplay.classList.add('text-red-400');
+                avatarContainer.classList.add('speaking-active');
+                isSpeaking = true;
+            } 
+            
+            updateEmotionDisplay(currentEmotion); 
+        }
+
+        function updateEmotionDisplay(emotionKey) {
+            emotionKey = emotionKey.toUpperCase();
+            
+            const emotionClassMap = {
+                'JOY': { class: 'emotion-joy-glow', text: 'JOYFUL' },
+                'INTEREST': { class: 'emotion-interest-glow', text: 'INTERESTED' },
+                'CONFUSION': { class: 'emotion-confusion-glow', text: 'COMPUTING' },
+                'NEUTRAL': { class: 'emotion-neutral-glow', text: 'NEUTRAL' }
+            };
+
+            const cleanClasses = Object.values(emotionClassMap).map(m => m.class).join(' ');
+            avatarContainer.classList.remove(...cleanClasses.split(' '));
+
+            const emotionData = emotionClassMap[emotionKey] || emotionClassMap['NEUTRAL'];
+
+            avatarContainer.classList.add(emotionData.class);
+            emotionStatusText.textContent = emotionData.text;
+
+            emotionStatusText.classList.remove('text-cyan-400', 'text-yellow-400', 'text-green-400', 'text-red-400');
+            if (emotionKey === 'JOY') emotionStatusText.classList.add('text-yellow-400');
+            else if (emotionKey === 'INTEREST') emotionStatusText.classList.add('text-green-400');
+            else if (emotionKey === 'CONFUSION') emotionStatusText.classList.add('text-red-400');
+            else emotionStatusText.classList.add('text-cyan-400');
+            
+            if (!isSpeaking) {
+                 // Ensure the correct closed-mouth image for the new emotion is displayed immediately
+                 updateAvatarImage(emotionKey, false);
+            }
+            
+            outputContainer.scrollTop = outputContainer.scrollHeight;
+        }
+
+        /**
+         * Toggles the avatar image between mouth open (speaking) and mouth closed (idle)
+         * using the pre-cached image URLs for real-time performance.
+         * @param {string} emotionKey - The current emotion key.
+         * @param {boolean} openMouth - True to show the speaking image (with jaw movement).
+         */
+        function updateAvatarImage(emotionKey, openMouth) {
+            emotionKey = emotionKey.toUpperCase();
+            const keySuffix = openMouth ? '_OPEN' : '_CLOSED';
+            const key = emotionKey + keySuffix;
+            
+            let newImgSrc = imageCache[key]; // Use the cached URL
+
+            if (!newImgSrc) {
+                 // Fallback to generating the URL if caching failed for this key
+                 newImgSrc = openMouth ? speakingImageMap[emotionKey] : defaultImageMap[emotionKey];
+                 if (!newImgSrc) newImgSrc = defaultImageMap['NEUTRAL']; // Final safety net
+            }
+
+            // Toggle the subtle jaw movement class for human-like speech
+            if (openMouth) {
+                robotFaceImg.classList.add('is-speaking-visual'); 
+            } else {
+                robotFaceImg.classList.remove('is-speaking-visual');
+            }
+
+            // Change image source instantly using cached URL
+            if (robotFaceImg.src !== newImgSrc) {
+                 robotFaceImg.src = newImgSrc;
+            }
+        }
+
+
+        /**
+         * Starts the volume analysis loop for real-time lip-sync.
+         */
+        function startLipSyncAnalysis(analyser) {
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            
+            // Disable blinking while speaking is active
+            robotFaceImg.classList.remove('blinking'); 
+
+            function analyzeAndSync() {
+                if (!isSpeaking) {
+                    // Stop analysis when speaking ends
+                    updateAvatarImage(currentEmotion, false); 
+                    return;
+                }
+
+                analyser.getByteTimeDomainData(dataArray);
+
+                let sum = 0;
+                for(let i = 0; i < bufferLength; i++) {
+                    // Sum the absolute difference from the midpoint (128)
+                    sum += Math.abs(dataArray[i] - 128); 
+                }
+                const averageVolume = sum / bufferLength;
+
+                if (averageVolume > VOLUME_THRESHOLD) {
+                    updateAvatarImage(currentEmotion, true); // Open mouth
+                } else {
+                    updateAvatarImage(currentEmotion, false); // Close mouth
+                }
+                
+                requestAnimationFrame(analyzeAndSync);
+            }
+            
+            analyzeAndSync();
+        }
+
+        // --- Camera Logic (Updated for new layout) ---
+
+        async function setupCamera() {
+            if (videoStream) return; // Already running
+
+            try {
+                // Request camera access
+                videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = videoStream;
+                video.classList.remove('hidden');
+                
+                // Show the entire vision container, making the column visible
+                visionOutputScreen.classList.remove('hidden'); 
+                visionOutputScreen.classList.add('flex'); // Add flex to make the column visible
+
+                cameraStatus.textContent = 'Active';
+                cameraStatus.classList.remove('text-red-500');
+                cameraStatus.classList.add('text-green-500');
+                
+                // Set canvas size once video metadata is loaded
+                video.onloadedmetadata = () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    // Start video playback only when metadata is loaded
+                    video.play(); 
+                };
+
+            } catch (err) {
+                console.error("Camera access denied or failed:", err);
+                cameraStatus.textContent = 'Denied';
+                cameraStatus.classList.remove('text-green-500');
+                cameraStatus.classList.add('text-red-500');
+                cameraToggle.checked = false;
+                videoStream = null;
+                // Use a custom message box instead of alert()
+                responseContent.innerHTML += `<p class="text-red-400 font-bold mt-2">ACCESS_DENIED: Camera access failed. Ensure you grant permission. Error: ${err.name}</p>`;
+            }
+        }
+
+        function stopCamera() {
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                videoStream = null;
+                video.srcObject = null;
+                video.classList.add('hidden');
+            }
+            cameraStatus.textContent = 'Disabled';
+            cameraStatus.classList.remove('text-green-500');
+            cameraStatus.classList.add('text-red-500');
+            
+            // Hide the entire vision container
+            visionOutputScreen.classList.add('hidden');
+            visionOutputScreen.classList.remove('flex'); // Remove flex to properly hide the column
+        }
+
+        function toggleCamera() {
+            if (cameraToggle.checked) {
+                setupCamera();
+            } else {
+                stopCamera();
+            }
+        }
+        
+        /**
+         * Captures a frame from the video feed and returns it as a Base64 string (without the prefix).
+         * @returns {string | null} Base64 encoded JPEG data or null if not available.
+         */
+        function captureFrame() {
+            if (!videoStream || video.paused || video.ended) {
+                return null;
+            }
+
+            const ctx = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            
+            // Draw the current video frame onto the canvas
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Get Base64 image data (JPEG for smaller size)
+            const imageDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+            
+            // Extract just the Base64 part after the comma
+            return imageDataUrl.split(',')[1];
+        }
+
+
+        // --- UI State Management ---
+
+        function setUIToProcessing(query) {
+             sendButton.disabled = true;
+             micButton.disabled = true;
+             inputField.disabled = true;
+             loadingIndicator.classList.remove('hidden');
+             loadingText.textContent = 'Generating response...'; 
+             sourcesDisplay.classList.add('hidden');
+             sourcesDisplay.innerHTML = '';
+             // Sanitize and display user query
+             const safeQuery = query.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+             responseContent.innerHTML += `<p class="text-cyan-400 font-medium mt-2">USER_QUERY: ${safeQuery}</p>`;
+             outputContainer.scrollTop = outputContainer.scrollHeight; 
+             updateStatus('PROCESSING');
+             isSpeaking = true; // Set to true to stop blinking during processing
+        }
+
+        function setUIToReady() {
+            loadingIndicator.classList.add('hidden');
+            sendButton.disabled = false;
+            micButton.disabled = false;
+            inputField.disabled = false;
+            inputField.placeholder = "Type your command here...";
+            updateStatus('ONLINE');
+            updateMicButton('mic');
+            isSpeaking = false; // Allow blinking again
+            simulateBlink();
+        }
+
+        function displayError(message) {
+            responseContent.innerHTML += `<p class="text-red-400 font-medium mt-2">SYSTEM_ERROR: ${message}</p>`;
+            setUIToReady();
+            outputContainer.scrollTop = outputContainer.scrollHeight;
+        }
+        
+        // --- Command Button Handler (New) ---
+        window.handleCommand = function(command) {
+            if (interactionTriggered) return;
+            
+            let message = '';
+            
+            switch (command) {
+                case 'NewChat':
+                    responseContent.innerHTML = `<p class="text-cyan-400 font-medium">AURA_OS v4.4 (Real-time Lip Sync & Side-by-Side Vision Deployed).</p>`;
+                    message = "Starting a new conversation session. How can I help you today?";
+                    // Automatically trigger the LLM to get an audio response for confirmation
+                    simulateInteraction(message, true); 
+                    break;
+                case 'Translate':
+                    message = "Ready for translation. Please type or speak the phrase you need translated, and specify the target language.";
+                    responseContent.innerHTML += `<p class="text-green-400 font-bold mt-2">AURA_COMMAND: ${message}</p>`;
+                    outputContainer.scrollTop = outputContainer.scrollHeight; 
+                    break;
+                case 'Vision':
+                    cameraToggle.checked = !cameraToggle.checked;
+                    toggleCamera();
+                    const state = cameraToggle.checked ? 'ENABLED' : 'DISABLED';
+                    message = `AURA Vision has been ${state}.`;
+                    responseContent.innerHTML += `<p class="text-yellow-400 font-bold mt-2">AURA_COMMAND: ${message}</p>`;
+                    outputContainer.scrollTop = outputContainer.scrollHeight; 
+                    break;
+                default:
+                    message = `Command "${command}" executed.`;
+                    responseContent.innerHTML += `<p class="text-gray-400 mt-2">AURA_COMMAND: ${message}</p>`;
+                    outputContainer.scrollTop = outputContainer.scrollHeight; 
+            }
+        };
+
+
+        // --- TTS & Audio Playback (Web Audio API) ---
+
+        async function playAudio(generatedText) {
+            if (!audioContext) {
+                 try {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                 } catch (e) {
+                    console.error("Failed to initialize AudioContext:", e);
+                    responseContent.innerHTML += `<p class="text-red-400 font-bold mt-2">AUDIO FAILED: Cannot initialize Web Audio API.</p>`;
+                    return true; 
+                 }
+            }
+            if (audioContext.state === 'suspended') {
+                audioContext.resume().catch(e => console.error("Failed to resume AudioContext:", e));
+            }
+
+
+            loadingText.textContent = 'Generating voice...';
+            
+            // NOTE: Using the 'Kore' voice as specified in the prompt rules.
+            const ttsPayload = {
+                contents: [{ parts: [{ text: generatedText }] }],
+                generationConfig: {
+                    responseModalities: ["AUDIO"],
+                    speechConfig: {
+                        voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } } 
+                    }
+                },
+                model: "gemini-2.5-flash-preview-tts"
+            };
+
+            try {
+                const response = await fetchWithRetry(API_TTS_URL, ttsPayload);
+                const part = response?.candidates?.[0]?.content?.parts?.[0];
+                const audioData = part?.inlineData?.data;
+                const mimeType = part?.inlineData?.mimeType;
+                
+                // MimeType for raw PCM is audio/L16
+                if (audioData && mimeType && mimeType.startsWith("audio/L16")) {
+                    console.log("TTS Data Received and starting conversion.");
+
+                    const sampleRateMatch = mimeType.match(/rate=(\d+)/);
+                    const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1], 10) : 24000;
+                    
+                    const pcmData = base64ToArrayBuffer(audioData);
+                    const pcm16 = new Int16Array(pcmData); 
+                    
+                    return new Promise((resolve) => {
+                        loadingText.textContent = 'Converting and playing audio...';
+
+                        try {
+                            const audioBuffer = pcmToAudioBuffer(pcm16, sampleRate);
+
+                            const source = audioContext.createBufferSource();
+                            source.buffer = audioBuffer;
+                            
+                            const analyser = audioContext.createAnalyser();
+                            analyser.fftSize = 256; 
+                            
+                            source.connect(analyser);
+                            analyser.connect(audioContext.destination);
+
+                            source.onended = () => {
+                                console.log("Audio playback finished. Stopping lip-sync analysis.");
+                                isSpeaking = false; 
+                                updateStatus('ONLINE', currentEmotion); 
+                                resolve(true); 
+                            };
+
+                            updateStatus('SPEAKING', currentEmotion); 
+                            startLipSyncAnalysis(analyser); // Start real-time volume analysis
+                            
+                            loadingText.textContent = 'AURA is speaking...';
+                            source.start(0);
+
+                        } catch (e) {
+                            console.error("Audio Conversion/Playback failed:", e);
+                            displayError("Audio Playback failed (Conversion Error).");
+                            resolve(true); 
+                        }
+                    });
+
+                } else {
+                    console.error("TTS Data Missing or Invalid MimeType:", mimeType);
+                    displayError("TTS Failed to generate audio data. Playing text only.");
+                    return true;
+                }
+            } catch (e) {
+                console.error("TTS API or Conversion Error:", e);
+                displayError(`TTS Generation Error: ${e.message}.`);
+                return true;
+            }
+        }
+
+        // --- Fetch with Retry Logic ---
+
+        async function fetchWithRetry(url, payload) {
+            let retries = 0;
+            while (retries < MAX_RETRIES) {
+                try {
+                    const response = await fetch(`${url}?key=${apiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (response.ok) {
+                        return await response.json();
+                    } else if (response.status === 403) {
+                         throw new Error("API returned status 403. Check API key/project permissions.");
+                    } else if (response.status === 429 || response.status >= 500) {
+                        const delay = INITIAL_BACKOFF * Math.pow(2, retries) + Math.random() * 500;
+                        retries++;
+                        if (retries < MAX_RETRIES) {
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                        } else {
+                            throw new Error(`API returned status ${response.status} after max retries.`);
+                        }
+                    } else {
+                        throw new Error(`API returned status ${response.status}`);
+                    }
+                } catch (error) {
+                    throw new Error(`Fetch error: ${error.message}`);
+                }
+            }
+            throw new Error("All retry attempts failed.");
+        }
+
+
+        // --- Main Interaction Logic ---
+
+        async function simulateInteraction(predefinedQuery = null, isCommand = false) {
+            const userQuery = predefinedQuery || inputField.value.trim();
+            
+            if (!userQuery || sendButton.disabled || interactionTriggered || !isCacheReady) {
+                 if (userQuery === '...Listening...') {
+                      inputField.value = '';
+                      setUIToReady();
+                 }
+                 return;
+            }
+
+            interactionTriggered = true; 
+            
+            setUIToProcessing(userQuery);
+            
+            // --- 1. Construct LLM Payload ---
+            const chatHistory = [];
+            const parts = [{ text: userQuery }];
+            
+            let imageData = null;
+            
+            if (cameraToggle.checked && videoStream) {
+                loadingText.textContent = 'Capturing image from camera...';
+                imageData = captureFrame();
+                if (imageData) {
+                     parts.push({
+                        inlineData: {
+                            mimeType: "image/jpeg",
+                            data: imageData
+                        }
+                    });
+                     responseContent.innerHTML += `<p class="text-cyan-600 mt-2 text-xs">AURA_VISION: Captured frame for analysis.</p>`;
+                }
+            }
+
+            chatHistory.push({ role: "user", parts: parts });
+
+            const llmPayload = {
+                contents: chatHistory,
+                // Only use search grounding for regular user queries, not internal commands
+                tools: isCommand ? [] : [{ "google_search": {} }], 
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+            };
+            
+            let generatedText = null;
+            let sources = [];
+            let emotion = 'NEUTRAL';
+
+            try {
+                loadingText.textContent = 'Generating response...';
+                const responseData = await fetchWithRetry(API_LLM_URL, llmPayload);
+                const candidate = responseData.candidates?.[0];
+
+                if (candidate) {
+                    generatedText = candidate.content?.parts?.[0]?.text;
+                    
+                    const match = generatedText.match(EMOTION_REGEX);
+                    if (match) {
+                        emotion = match[1].toUpperCase();
+                        generatedText = generatedText.replace(EMOTION_REGEX, '').trim();
+                    }
+
+                    const groundingMetadata = candidate.groundingMetadata;
+                    if (groundingMetadata && groundingMetadata.groundingAttributions) {
+                        sources = groundingMetadata.groundingAttributions
+                            .map(attribution => ({ uri: attribution.web?.uri, title: attribution.web?.title }))
+                            .filter(source => source.uri && source.title);
+                    }
+                } else {
+                    throw new Error("Invalid response structure from LLM.");
+                }
+                
+                // Update emotion status immediately after LLM response is parsed
+                updateStatus('PROCESSING', emotion); 
+                loadingText.textContent = 'Preparing audio...';
+                
+            } catch (e) {
+                interactionTriggered = false; 
+                return displayError(e.message);
+            }
+
+            // 2. Display text instantly
+            responseContent.innerHTML += `<p class="text-cyan-200 mt-2">${generatedText}</p>`;
+            outputContainer.scrollTop = outputContainer.scrollHeight; 
+
+            // 3. TTS Call and Play Audio 
+            await playAudio(generatedText); 
+            
+            // 4. Display sources
+            if (sources.length > 0) {
+                sourcesDisplay.classList.remove('hidden');
+                let sourcesHtml = '<p class="text-xs font-semibold text-gray-400 mb-1">Grounding Sources:</p>';
+                sources.forEach((source, index) => {
+                    // Sanitize source title
+                    const safeTitle = source.title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                    sourcesHtml += `<p class="text-xs text-gray-500 truncate"><span class="text-cyan-400">[\u2022${index + 1}]</span> <a href="${source.uri}" target="_blank" class="hover:text-cyan-300 transition duration-150">${safeTitle}</a></p>`;
+                });
+                sourcesDisplay.innerHTML = sourcesHtml;
+            } else {
+                 sourcesDisplay.classList.add('hidden');
+            }
+
+            // 5. Reset UI
+            setUIToReady();
+            inputField.value = '';
+            interactionTriggered = false; 
+        }
+
+        // --- Speech Recognition Logic ---
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition = null;
+        let speechCaptured = false; 
+        
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.lang = 'en-US';
+            recognition.interimResults = false;
+            
+            recognition.onstart = () => {
+                speechCaptured = false;
+                updateStatus('LISTENING');
+                inputField.value = '...Listening...';
+                inputField.disabled = true;
+                sendButton.disabled = true;
+                updateMicButton('stop');
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                inputField.value = transcript;
+                speechCaptured = true; 
+                inputField.disabled = false;
+                
+                updateStatus('ONLINE'); 
+                
+                updateMicButton('send'); 
+                recognition.stop(); 
+            };
+
+            recognition.onerror = (event) => {
+                let errorMsg = `Speech Recognition Error: ${event.error}`;
+                if (statusDisplay.textContent === 'LISTENING') {
+                     inputField.value = '';
+                     displayError(errorMsg);
+                } else {
+                    console.error(errorMsg);
+                }
+            };
+
+            recognition.onend = () => {
+                if (speechCaptured) {
+                    updateMicButton('send');
+                } else if (statusDisplay.textContent === 'LISTENING') { 
+                    inputField.value = '';
+                    displayError('No speech was detected or captured. Please try again.');
+                }
+            };
+        } else {
+             document.addEventListener('DOMContentLoaded', () => {
+                 micButton.style.display = 'none';
+                 document.getElementById('voice-instruction').textContent = "Browser does not support Speech Recognition. Please use text input.";
+             });
+        }
+
+        window.handleMicButton = function() {
+            if (interactionTriggered) return;
+
+            const currentMicState = getMicButtonState();
+
+            if (currentMicState === 'mic') {
+                try {
+                    recognition.start();
+                } catch (e) {
+                    if (e.name !== 'NotSupportedError') {
+                        console.error("Recognition Start Error:", e);
+                        displayError("Microphone startup failed. Please try again or refresh.");
+                    }
+                    setUIToReady();
+                }
+            } else if (currentMicState === 'stop') {
+                recognition.stop();
+            } else if (currentMicState === 'send') {
+                simulateInteraction();
+            }
+        };
+
+        function updateMicButton(state) {
+            micIcon.classList.add('hidden');
+            stopIcon.classList.add('hidden');
+            sendIconMic.classList.add('hidden');
+
+            micButton.classList.remove('bg-green-600', 'hover:bg-green-500', 'bg-red-600', 'hover:bg-red-500', 'bg-blue-600', 'hover:bg-blue-500');
+
+            if (state === 'mic') {
+                micIcon.classList.remove('hidden');
+                micButton.classList.add('bg-green-600', 'hover:bg-green-500');
+                micButton.title = 'Start Voice Command';
+                // Only enable send button if input field is not empty, unless we are in voice flow
+                sendButton.disabled = false; 
+            } else if (state === 'stop') {
+                stopIcon.classList.remove('hidden');
+                micButton.classList.add('bg-red-600', 'hover:bg-red-500');
+                micButton.title = 'Stop Recording';
+                sendButton.disabled = true; 
+            } else if (state === 'send') {
+                sendIconMic.classList.remove('hidden');
+                micButton.classList.add('bg-blue-600', 'hover:bg-blue-500');
+                micButton.title = 'Send Captured Text';
+                sendButton.disabled = false;
+            }
+        }
+
+        function getMicButtonState() {
+             if (!micIcon.classList.contains('hidden')) return 'mic';
+             if (!stopIcon.classList.contains('hidden')) return 'stop';
+             if (!sendIconMic.classList.contains('hidden')) return 'send';
+             return 'mic'; 
+        }
+        
+        window.simulateInteraction = simulateInteraction;
+        window.handleMicButton = handleMicButton;
+    </script>
+</body>
+</html>
