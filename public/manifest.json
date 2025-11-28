@@ -1,0 +1,128 @@
+{
+  "name": "A.U.R.A. System - Humanoid AI Assistant",
+  "short_name": "AURA AI",
+  "description": "Advanced Unified Responsive Assistant - Your intelligent humanoid AI companion",
+  "version": "4.4.0",
+  "version_name": "Secure Backend v4.4",
+  
+  "icons": [
+    {
+      "src": "/icons/icon-72x72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-152x152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-384x384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#00ffff",
+  "background_color": "#0d1117",
+  "scope": "/",
+  
+  "categories": ["productivity", "utilities", "education"],
+  "lang": "en-US",
+  "dir": "ltr",
+  
+  "screenshots": [
+    {
+      "src": "/screenshots/mobile-screenshot.png",
+      "sizes": "375x812",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "AURA AI Mobile Interface"
+    },
+    {
+      "src": "/screenshots/desktop-screenshot.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "AURA AI Desktop Interface"
+    }
+  ],
+  
+  "shortcuts": [
+    {
+      "name": "New Chat",
+      "short_name": "Chat",
+      "description": "Start a new conversation with AURA",
+      "url": "/?command=newchat",
+      "icons": [
+        {
+          "src": "/icons/shortcut-chat.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Translate",
+      "short_name": "Translate",
+      "description": "Quick translation mode",
+      "url": "/?command=translate",
+      "icons": [
+        {
+          "src": "/icons/shortcut-translate.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Vision Mode",
+      "short_name": "Vision",
+      "description": "Enable camera vision",
+      "url": "/?command=vision",
+      "icons": [
+        {
+          "src": "/icons/shortcut-vision.png",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ],
+  
+  "related_applications": [],
+  "prefer_related_applications": false
+}
