@@ -1,0 +1,1074 @@
+<meta name='viewport' content='width=device-width, initial-scale=1'/><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="/manifest.json">
+    <title>AURA - Humanoid AI Assistant (Secure Backend)</title>
+    
+    <meta name="application-name" content="AURA AI">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="AURA AI">
+    <meta name="description" content="Advanced Unified Responsive Assistant - Your intelligent humanoid AI companion">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="msapplication-TileColor" content="#00ffff">
+    <meta name="msapplication-tap-highlight" content="no">
+    <meta name="theme-color" content="#00ffff" media="(prefers-color-scheme: dark)">
+    <meta name="msapplication-navbutton-color" content="#00ffff">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d1117; 
+            color: #e2e8f0;
+            height: 100vh;
+            overflow: hidden; 
+            margin: 0;
+            padding: 0;
+        }
+
+        /* --- Custom Animations for 'Aliveness' --- */
+        @keyframes breathe {
+            0% { transform: translateY(0) scale(1) rotateX(0deg); opacity: 0.98; }
+            50% { transform: translateY(-1px) scale(1.005) rotateX(0.5deg); opacity: 1; }
+            100% { transform: translateY(0) scale(1) rotateX(0deg); opacity: 0.98; }
+        }
+
+        @keyframes blink-effect {
+            0% { transform: scaleY(1); }
+            50% { transform: scaleY(0.05); } 
+            100% { transform: scaleY(1); }
+        }
+        
+        /* --- General UI Styles --- */
+        .avatar-container {
+            position: relative;
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 2px solid; 
+            transition: all 0.5s ease-in-out;
+            animation: breathe 5s ease-in-out infinite; 
+            z-index: 10;
+            margin: 0 auto;
+            flex-shrink: 0;
+        }
+        .avatar-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center;
+            transform-origin: top center; 
+            transition: transform 0.05s ease-in-out, opacity 0.1s ease-in-out, filter 0.2s ease;
+        }
+        
+        /* The class applied during the blink sequence */
+        .blinking {
+            animation: blink-effect 0.05s ease-in-out forwards;
+        }
+        
+        /* New class for subtle image shift when the mouth is 'open' to simulate jaw movement */
+        .is-speaking-visual {
+            transform: translateY(1px); 
+        }
+
+        /* Emotion Glow Classes */
+        .emotion-neutral-glow { border-color: #00ffff !important; box-shadow: 0 0 20px rgba(0, 255, 255, 0.7); }
+        .emotion-joy-glow { border-color: #ffeb3b !important; box-shadow: 0 0 20px rgba(255, 235, 59, 0.9); }
+        .emotion-interest-glow { border-color: #4caf50 !important; box-shadow: 0 0 20px rgba(76, 175, 80, 0.8); }
+        .emotion-confusion-glow { border-color: #f44369 !important; box-shadow: 0 0 20px rgba(244, 67, 54, 0.8); }
+
+        /* Active Status Animations */
+        .listening-pulse { animation: pulse-border 0.7s infinite alternate; }
+        .speaking-active { 
+            animation: breathe 5s ease-in-out infinite, glow-speak 0.4s infinite alternate; 
+        }
+
+        @keyframes pulse-border {
+            from { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); } 
+            to { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+        }
+        @keyframes glow-speak {
+            from { box-shadow: 0 0 10px rgba(0, 255, 255, 0.9); } 
+            to { box-shadow: 0 0 25px rgba(0, 255, 255, 0.9), 0 0 5px rgba(0, 255, 255, 0.5); }
+        }
+
+        /* Scrollbar and Input Styles */
+        .input-glow:focus { box-shadow: 0 0 0 2px rgba(0, 255, 255, 0.5); border-color: #00ffff; }
+        #output-container::-webkit-scrollbar { width: 8px; }
+        #output-container::-webkit-scrollbar-thumb { background-color: #00ffff; border-radius: 10px; }
+        #output-container::-webkit-scrollbar-track { background-color: #1a202c; }
+        
+        /* Full height on mobile and flexible width */
+        #app {
+            width: 100%;
+            height: 100%;
+            max-width: 900px;
+            position: relative; 
+            display: flex;
+            flex-direction: column;
+        }
+        
+        @media (min-width: 640px) {
+            #app {
+                border-radius: 0.75rem;
+                height: 95vh;
+                max-height: 800px;
+            }
+            #vision-output-screen {
+                padding: 1rem;
+            }
+        }
+        
+        /* Install Button Styles */
+        #install-button {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: linear-gradient(135deg, #00ffff, #00b3b3);
+            color: #0f172a;
+            border: none;
+            border-radius: 50px;
+            padding: 10px 20px;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(0, 255, 255, 0.5);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: none;
+        }
+        
+        #install-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 255, 255, 0.7);
+        }
+
+        /* Fixed top section layout */
+        #fixed-top-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            z-index: 5;
+            flex-shrink: 0;
+        }
+
+        /* Logo and status positioning */
+        .logo-status-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            margin-top: 10px;
+        }
+        
+        /* Command section positioning */
+        #command-section {
+            width: 100%;
+            margin-top: 15px;
+            z-index: 5;
+        }
+
+        /* Ensure avatar has its own space */
+        .avatar-section {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            padding: 10px 0;
+        }
+    </style>
+</head>
+<body class="p-0 sm:p-8 flex justify-center items-center h-screen">
+
+    <button id="install-button" class="hidden">
+        📱 Install AURA
+    </button>
+
+    <div id="app" class="bg-[#161b22] text-white shadow-2xl flex flex-col">
+
+        <div id="fixed-top-section" class="p-6 pb-4 flex-shrink-0 bg-[#161b22] border-b border-cyan-800/50">
+            
+            <div class="avatar-section">
+                <div id="avatar-container" class="avatar-container emotion-neutral-glow">
+                    <img id="robot-face-img" 
+                         src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDE1MCAxNTAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgPGRlZnM+CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9ImF1cmFHcmFkaWVudCIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiMwMGZmZmYiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSI1MCUiIHN0b3AtY29sb3I9IiMwMGIzYjMiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxMDAlIiBzdG9wLWNvbG9yPSIjMDA2NjY2Ii8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogIDwvZGVmcz4KICA8Y2lyY2xlIGN4PSI3NSIgY3k9Ijc1IiByPSI3MCIgZmlsbD0idXJsKCNhdXJhR3JhZGllbnQpIiBvcGFjaXR5PSIwLjkiLz4KICA8Y2lyY2xlIGN4PSI3NSIgY3k9Ijc1IiByPSI2MCIgZmlsbD0iIzBmMTcyYSIgc3Ryb2tlPSJ1cmwoI2F1cmFHcmFkaWVudCkiIHN0cm9rZS13aWR0aD0iMyIvPgogIDxwYXRoIGQ9Ik00NSA0NSBRNzUgMjUgMTA1IDQ1IFQxMzUgNDUiIHN0cm9rZT0idXJsKCNhdXJhR3JhZGllbnQpIiBzdHJva2Utd2lkdGg9IjIiIGZpbGw9Im5vbmUiLz4KICA8cGF0aCBkPSJNNDUgNzUgUTc1IDU1IDEwNSA3NSBUMTEwIDc1\"/></svg>"
+                         alt="AURA Humanoid Avatar"
+                         style="transition: transform 0.05s ease-in-out, opacity 0.1s ease-in-out; transform-origin: top center;"> 
+                </div>
+            </div>
+
+            <div class="logo-status-container">
+                <h1 class="text-3xl font-extrabold text-cyan-300 tracking-wider">A.U.R.A. System</h1>
+                <p class="text-sm text-gray-400 mt-2">
+                    Emotion: <span id="emotion-status-text" class="font-mono text-cyan-400 font-semibold">NEUTRAL</span>
+                    | Status: <span id="status-display" class="font-mono text-green-400">LOADING...</span>
+                </p>
+            </div>
+            
+            <div id="command-section" class="flex justify-around flex-wrap gap-3 w-full max-w-sm mx-auto">
+                <button onclick="handleCommand('NewChat')" title="Start a New Conversation"
+                    class="flex items-center space-x-1 p-2 bg-blue-700/50 hover:bg-blue-600/70 rounded-lg text-sm font-medium transition duration-200 active:scale-95">
+                    <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                    <span>New Chat</span>
+                </button>
+                <button onclick="handleCommand('Translate')" title="Translate spoken or typed text"
+                    class="flex items-center space-x-1 p-2 bg-green-700/50 hover:bg-green-600/70 rounded-lg text-sm font-medium transition duration-200 active:scale-95">
+                    <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h7"/><path d="M12 5l6 10"/><path d="M16 16l-3.5-7.5"/><path d="M2 17h12"/><path d="M9 22l6-10"/></svg>
+                    <span>Translate</span>
+                </button>
+                <button onclick="handleCommand('Vision')" title="Toggle Robot Vision (Camera Share)"
+                    class="flex items-center space-x-1 p-2 bg-yellow-700/50 hover:bg-yellow-600/70 rounded-lg text-sm font-medium transition duration-200 active:scale-95">
+                    <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/><path d="M1.3 12C3.15 6.45 7.8 3 12 3s8.85 3.45 10.7 9c-1.85 5.55-6.5 9-10.7 9S3.15 17.55 1.3 12Z"/></svg>
+                    <span>Vision</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="main-interaction-area" class="flex-1 flex flex-col sm:flex-row overflow-hidden">
+            
+            <div id="vision-output-screen" class="hidden w-full sm:w-1/3 sm:min-w-[200px] sm:max-w-xs p-4 bg-[#161b22] sm:border-r border-cyan-800/50 flex-shrink-0 flex-col overflow-y-auto">
+                <div class="vision-header flex items-center justify-between mb-2">
+                    <label for="camera-toggle" class="flex items-center text-sm font-medium text-cyan-400 cursor-pointer">
+                        <input type="checkbox" id="camera-toggle" class="mr-2 h-4 w-4 text-cyan-500 rounded border-gray-600 bg-gray-800 focus:ring-cyan-500">
+                        Enable Vision
+                    </label>
+                    <span id="camera-status" class="text-xs text-red-500 font-mono">Disabled</span>
+                </div>
+                <video id="camera-feed" class="w-full h-auto rounded-lg hidden border border-gray-600 shadow-lg" autoplay playsinline muted></video>
+                <canvas id="capture-canvas" class="hidden"></canvas>
+                <div class="mt-4 text-xs text-gray-500">AURA captures an image from this feed for multimodal analysis when you send a command.</div>
+            </div>
+            
+            <div id="chat-output-wrapper" class="flex-1 flex flex-col p-4 pt-4 pb-0 overflow-hidden">
+                <div class="flex-1 overflow-y-auto pr-2" id="output-container">
+                    <div id="response-content" class="whitespace-pre-wrap text-sm text-gray-200">
+                        <p class="text-cyan-400 font-medium">AURA_OS v4.4 (Secure Backend Version)</p>
+                        <p class="text-yellow-400 font-bold">SYSTEM: Backend integration active. Camera/Mic now secure.</p>
+                        <p class="text-green-400 text-xs mt-2" id="pwa-status">PWA: Checking capabilities...</p>
+                    </div>
+                    <div id="loading-indicator" class="hidden mt-3">
+                        <div class="flex items-center space-x-2 text-cyan-400">
+                            <div class="w-3 h-3 bg-cyan-400 rounded-full animate-bounce"></div>
+                            <div class="w-3 h-3 bg-cyan-400 rounded-full animate-bounce delay-150"></div>
+                            <div class="w-3 h-3 bg-cyan-400 rounded-full animate-bounce delay-300"></div>
+                            <span id="loading-text" class="text-sm">Processing command...</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="sources-display" class="mt-4 pt-3 border-t border-gray-600 hidden">
+                    <p class="text-xs font-semibold text-gray-400 mb-1">Grounding Sources:</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-4 border-t border-cyan-700/50 flex-shrink-0 bg-[#161b22]">
+             <p id="voice-instruction" class="text-xs text-center text-gray-400 mb-2">
+                Tap the Mic (🟢) to record, Stop (🔴) to finish, or Send (🔵) to execute the command.
+            </p>
+            <div class="flex space-x-2">
+                 <input type="text" id="user-input" placeholder="Type your command here..."
+                       class="flex-grow p-3 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none input-glow transition duration-200 disabled:opacity-50"
+                       onkeydown="if(event.key === 'Enter') { simulateInteraction(); }">
+
+                <button onclick="handleMicButton()" id="mic-button"
+                        class="h-12 w-12 flex-shrink-0 bg-green-600 hover:bg-green-500 text-white p-2 rounded-lg transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center">
+                    <svg id="mic-icon" class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2h-2v2a9 9 0 008 8.94V23h2v-2.06A9 9 0 0021 12v-2h-2z"/></svg>
+                    <svg id="stop-icon" class="w-6 h-6 hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
+                    <svg id="send-icon-mic" class="w-6 h-6 hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                </button>
+            </div>
+           
+            <button onclick="simulateInteraction()" id="send-button"
+                    class="w-full mt-3 bg-cyan-600 hover:bg-cyan-500 text-black font-bold py-3 rounded-lg transition duration-300 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                <span>SEND TEXT COMMAND</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // ==================== PWA SETUP ====================
+        let deferredPrompt;
+        
+        // Register service worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(function(registration) {
+                        console.log('✅ AURA Service Worker registered:', registration);
+                        document.getElementById('pwa-status').textContent = 'PWA: ✅ Service Worker Active';
+                    })
+                    .catch(function(error) {
+                        console.log('❌ AURA Service Worker registration failed:', error);
+                        document.getElementById('pwa-status').textContent = 'PWA: ❌ Service Worker Failed';
+                    });
+            });
+        } else {
+            document.getElementById('pwa-status').textContent = 'PWA: ❌ Service Worker Not Supported';
+        }
+
+        // Add to homescreen prompt
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            
+            // Show install button
+            const installButton = document.getElementById('install-button');
+            installButton.style.display = 'block';
+            
+            console.log('📱 AURA App can be installed');
+        });
+
+        // Install button handler
+        document.getElementById('install-button').addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                
+                if (outcome === 'accepted') {
+                    console.log('User accepted the install prompt');
+                    document.getElementById('install-button').style.display = 'none';
+                } else {
+                    console.log('User dismissed the install prompt');
+                }
+                deferredPrompt = null;
+            }
+        });
+
+        // Check if app is running as PWA
+        if (window.matchMedia('(display-mode: standalone)').matches) {
+            document.getElementById('pwa-status').textContent = 'PWA: ✅ Running as Installed App';
+        }
+    </script>
+
+    <script>
+        // ==================== BACKEND CONFIGURATION ====================
+        const BACKEND_URL = window.location.origin;
+        const API_ENDPOINTS = {
+            CHAT: '/api/chat',
+            TTS: '/api/tts',
+            HEALTH: '/api/health'
+        };
+
+        // ==================== GLOBAL VARIABLES ====================
+        let currentEmotion = 'NEUTRAL';
+        let isSpeaking = false;
+        let interactionTriggered = false;
+        let audioContext = null;
+        let videoStream = null;
+        let currentAudioSource = null;
+        let recognition = null; // Defined here for global access and cleanup
+
+        // ==================== DOM ELEMENTS ====================
+        const inputField = document.getElementById('user-input');
+        const sendButton = document.getElementById('send-button');
+        const micButton = document.getElementById('mic-button');
+        const micIcon = document.getElementById('mic-icon');
+        const stopIcon = document.getElementById('stop-icon');
+        const sendIconMic = document.getElementById('send-icon-mic');
+        const responseContent = document.getElementById('response-content');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const loadingText = document.getElementById('loading-text');
+        const statusDisplay = document.getElementById('status-display');
+        const sourcesDisplay = document.getElementById('sources-display');
+        const outputContainer = document.getElementById('output-container');
+        const avatarContainer = document.getElementById('avatar-container');
+        const robotFaceImg = document.getElementById('robot-face-img');
+        const emotionStatusText = document.getElementById('emotion-status-text');
+        const visionOutputScreen = document.getElementById('vision-output-screen');
+        const video = document.getElementById('camera-feed');
+        const canvas = document.getElementById('capture-canvas');
+        const cameraToggle = document.getElementById('camera-toggle');
+        const cameraStatus = document.getElementById('camera-status');
+
+        // ==================== BACKEND API FUNCTIONS ====================
+        async function callBackendChat(userQuery, imageData = null, isCommand = false) {
+            const payload = {
+                message: userQuery,
+                isCommand: isCommand
+            };
+
+            if (imageData) {
+                payload.imageData = imageData;
+            }
+
+            const response = await fetch(API_ENDPOINTS.CHAT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ error: 'Unknown JSON parsing error' }));
+                throw new Error(errorData.error || `Backend error: ${response.status}`);
+            }
+
+            return await response.json();
+        }
+
+        async function callBackendTTS(text) {
+            const response = await fetch(API_ENDPOINTS.TTS, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ error: 'Unknown JSON parsing error' }));
+                throw new Error(errorData.error || `TTS backend error: ${response.status}`);
+            }
+
+            return await response.json();
+        }
+
+        // ==================== INITIALIZATION ====================
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Check backend health
+            await checkBackendHealth();
+
+            // Setup camera toggle
+            cameraToggle.addEventListener('change', toggleCamera);
+            
+            // Initialize audio context on first user interaction
+            document.addEventListener('click', initializeAudioContext, { once: true });
+            
+            // Initialize Speech Recognition
+            initializeSpeechRecognition();
+            
+            // Finalize UI
+            updateStatus('READY');
+            setUIToReady();
+            simulateBlink();
+            outputContainer.scrollTop = outputContainer.scrollHeight;
+        });
+
+        async function checkBackendHealth() {
+             try {
+                const healthResponse = await fetch(API_ENDPOINTS.HEALTH);
+                const health = await healthResponse.json();
+                
+                if (health.hasApiKey) {
+                    responseContent.innerHTML += `<p class="text-green-400 font-bold text-xs">✅ Backend connected with secure API key</p>`;
+                } else {
+                    responseContent.innerHTML += `<p class="text-red-400 font-bold text-xs">❌ Backend missing API key - check .env file</p>`;
+                }
+            } catch (error) {
+                responseContent.innerHTML += `<p class="text-red-400 font-bold text-xs">❌ Backend connection failed: ${error.message}</p>`;
+            }
+        }
+
+        function initializeAudioContext() {
+            if (!audioContext) {
+                try {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    console.log('✅ AudioContext initialized');
+                } catch (e) {
+                    console.error('❌ Failed to initialize AudioContext:', e);
+                }
+            }
+        }
+
+        // ==================== MAIN INTERACTION FUNCTION ====================
+        async function simulateInteraction(predefinedQuery = null, isCommand = false) {
+            const userQuery = predefinedQuery || inputField.value.trim();
+            
+            if (!userQuery || sendButton.disabled || interactionTriggered) {
+                // If this was an empty voice command, just clear and reset
+                if (userQuery === '...Listening...') {
+                    inputField.value = '';
+                    setUIToReady();
+                }
+                return;
+            }
+
+            interactionTriggered = true;
+            setUIToProcessing(userQuery);
+
+            try {
+                let imageData = null;
+                
+                if (cameraToggle.checked && videoStream) {
+                    loadingText.textContent = 'Capturing image from camera...';
+                    imageData = captureFrame();
+                    if (imageData) {
+                        responseContent.innerHTML += `<p class="text-cyan-600 mt-2 text-xs">AURA_VISION: Captured frame for analysis.</p>`;
+                    }
+                }
+
+                // Use backend for AI response
+                const aiResponse = await callBackendChat(userQuery, imageData, isCommand);
+                
+                if (!aiResponse.success) {
+                    throw new Error(aiResponse.error);
+                }
+
+                displayResponse(aiResponse.text, aiResponse.emotion);
+                
+                // Use backend TTS
+                try {
+                    const ttsResponse = await callBackendTTS(aiResponse.text);
+                    if (ttsResponse.success && ttsResponse.audioData) {
+                        console.log('🔊 Using backend TTS');
+                        await playAudioFromBackend(ttsResponse.audioData, ttsResponse.mimeType);
+                    } else {
+                        console.log('🔇 Backend TTS failed, using simulated speech');
+                        await simulateSpeech(aiResponse.text, aiResponse.emotion);
+                    }
+                } catch (ttsError) {
+                    console.warn('TTS failed, using simulation:', ttsError);
+                    await simulateSpeech(aiResponse.text, aiResponse.emotion);
+                }
+                
+                // Display sources if available
+                if (aiResponse.sources && aiResponse.sources.length > 0) {
+                    displaySources(aiResponse.sources);
+                }
+                
+            } catch (error) {
+                displayError(error.message);
+            }
+
+            setUIToReady();
+            if (!predefinedQuery) {
+                inputField.value = '';
+            }
+            interactionTriggered = false;
+        }
+
+        // ==================== FIXED AUDIO PLAYBACK SYSTEM ====================
+        async function playAudioFromBackend(audioData) {
+            console.log('🔊 Starting audio playback from backend...');
+            
+            if (!audioContext) {
+                initializeAudioContext();
+            }
+
+            if (!audioContext) {
+                console.error('❌ No AudioContext available');
+                await simulateSpeech("Audio system not available", currentEmotion);
+                return false;
+            }
+
+            // Resume audio context if suspended
+            if (audioContext.state === 'suspended') {
+                await audioContext.resume();
+            }
+
+            startLipSync();
+            loadingText.textContent = 'Playing audio...';
+
+            try {
+                // Convert base64 to ArrayBuffer
+                const binaryString = atob(audioData);
+                const len = binaryString.length;
+                const bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+
+                const audioBuffer = await audioContext.decodeAudioData(bytes.buffer);
+                
+                if (!audioBuffer) {
+                    throw new Error('Failed to decode audio data');
+                }
+
+                return new Promise((resolve) => {
+                    // Stop any currently playing audio
+                    if (currentAudioSource) {
+                        currentAudioSource.stop();
+                    }
+
+                    currentAudioSource = audioContext.createBufferSource();
+                    currentAudioSource.buffer = audioBuffer;
+                    
+                    const analyser = audioContext.createAnalyser();
+                    analyser.fftSize = 256;
+                    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                    
+                    currentAudioSource.connect(analyser);
+                    analyser.connect(audioContext.destination);
+
+                    // Start lip sync analysis
+                    const lipSyncController = startLipSyncAnalysis(analyser, dataArray);
+
+                    currentAudioSource.onended = () => {
+                        console.log('✅ Audio playback completed');
+                        stopLipSync();
+                        if (lipSyncController) {
+                            cancelAnimationFrame(lipSyncController.animationId);
+                        }
+                        currentAudioSource = null;
+                        resolve(true);
+                    };
+
+                    currentAudioSource.onerror = (error) => {
+                        console.error('❌ Audio playback error:', error);
+                        stopLipSync();
+                        if (lipSyncController) {
+                            cancelAnimationFrame(lipSyncController.animationId);
+                        }
+                        currentAudioSource = null;
+                        resolve(false);
+                    };
+
+                    currentAudioSource.start(0);
+                });
+
+            } catch (error) {
+                console.error("❌ Audio playback failed:", error);
+                stopLipSync();
+                // Fallback to simulated speech
+                await simulateSpeech("Audio playback failed", currentEmotion);
+                return false;
+            }
+        }
+
+        // Improved lip sync analysis
+        function startLipSyncAnalysis(analyser, dataArray) {
+            const controller = {
+                animationId: null,
+            };
+            
+            function analyze() {
+                if (!isSpeaking) {
+                    return; // Stop the loop if the speaking flag is false
+                }
+
+                analyser.getByteFrequencyData(dataArray);
+                
+                // Calculate average volume
+                let sum = 0;
+                for (let i = 0; i < dataArray.length; i++) {
+                    sum += dataArray[i];
+                }
+                const averageVolume = sum / dataArray.length;
+
+                // Update mouth position based on volume (Adjust threshold as needed)
+                const mouthOpen = averageVolume > 10;
+                updateAvatarImage(currentEmotion, mouthOpen);
+                
+                controller.animationId = requestAnimationFrame(analyze);
+            }
+            
+            analyze();
+            return controller;
+        }
+
+        // ==================== UI MANAGEMENT FUNCTIONS ====================
+        function updateStatus(newStatus, emotion = currentEmotion) {
+            currentEmotion = emotion.toUpperCase(); 
+            statusDisplay.textContent = newStatus;
+            
+            statusDisplay.className = 'font-mono font-semibold';
+            avatarContainer.classList.remove('listening-pulse', 'speaking-active');
+
+            if (newStatus === 'ONLINE' || newStatus === 'READY') {
+                statusDisplay.classList.add('text-green-400');
+                if (!isSpeaking) updateAvatarImage(currentEmotion, false);
+            } else if (newStatus === 'LOADING') {
+                 statusDisplay.classList.add('text-gray-400');
+            } else if (newStatus === 'LISTENING') {
+                statusDisplay.classList.add('text-yellow-400');
+                avatarContainer.classList.add('listening-pulse');
+            } else if (newStatus === 'PROCESSING') {
+                statusDisplay.classList.add('text-cyan-400');
+            } else if (newStatus === 'SPEAKING') {
+                statusDisplay.classList.add('text-red-400');
+                avatarContainer.classList.add('speaking-active');
+                isSpeaking = true;
+            } 
+            
+            updateEmotionDisplay(currentEmotion); 
+        }
+
+        function updateEmotionDisplay(emotionKey) {
+            emotionKey = emotionKey.toUpperCase();
+            
+            const emotionClassMap = {
+                'JOY': { class: 'emotion-joy-glow', text: 'JOYFUL', textClass: 'text-yellow-400' },
+                'INTEREST': { class: 'emotion-interest-glow', text: 'INTERESTED', textClass: 'text-green-400' },
+                'CONFUSION': { class: 'emotion-confusion-glow', text: 'COMPUTING', textClass: 'text-red-400' },
+                'NEUTRAL': { class: 'emotion-neutral-glow', text: 'NEUTRAL', textClass: 'text-cyan-400' }
+            };
+
+            const cleanClasses = Object.values(emotionClassMap).map(m => m.class).join(' ');
+            avatarContainer.classList.remove(...cleanClasses.split(' '));
+
+            const emotionData = emotionClassMap[emotionKey] || emotionClassMap['NEUTRAL'];
+            avatarContainer.classList.add(emotionData.class);
+            
+            emotionStatusText.textContent = emotionData.text;
+            emotionStatusText.className = `font-mono font-semibold ${emotionData.textClass}`;
+            
+            if (!isSpeaking) {
+                 updateAvatarImage(emotionKey, false);
+            }
+            
+            outputContainer.scrollTop = outputContainer.scrollHeight;
+        }
+
+        function updateAvatarImage(emotionKey, openMouth) {
+            // Simple visual feedback for speaking - no external images needed
+            if (openMouth) {
+                robotFaceImg.classList.add('is-speaking-visual');
+                robotFaceImg.style.filter = 'brightness(1.2) contrast(1.1)';
+            } else {
+                robotFaceImg.classList.remove('is-speaking-visual');
+                robotFaceImg.style.filter = 'brightness(1) contrast(1)';
+            }
+        }
+
+        function setUIToProcessing(query) {
+             sendButton.disabled = true;
+             micButton.disabled = true;
+             inputField.disabled = true;
+             loadingIndicator.classList.remove('hidden');
+             loadingText.textContent = 'Generating response...'; 
+             sourcesDisplay.classList.add('hidden');
+             sourcesDisplay.innerHTML = '';
+             const safeQuery = query.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+             responseContent.innerHTML += `<p class="text-cyan-400 font-medium mt-2">USER_QUERY: ${safeQuery}</p>`;
+             outputContainer.scrollTop = outputContainer.scrollHeight; 
+             updateStatus('PROCESSING');
+        }
+
+        function setUIToReady() {
+            loadingIndicator.classList.add('hidden');
+            sendButton.disabled = false;
+            micButton.disabled = false;
+            inputField.disabled = false;
+            inputField.placeholder = "Type your command here...";
+            updateStatus('ONLINE');
+            updateMicButton('mic');
+            isSpeaking = false;
+            // Blink is restarted automatically by its internal loop if not speaking
+        }
+
+        function displayError(message) {
+            responseContent.innerHTML += `<p class="text-red-400 font-medium mt-2">SYSTEM_ERROR: ${message}</p>`;
+            setUIToReady();
+            outputContainer.scrollTop = outputContainer.scrollHeight;
+        }
+
+        function displayResponse(text, emotion) {
+            responseContent.innerHTML += `<p class="text-cyan-200 mt-2"><span class="text-cyan-400 font-semibold">AURA:</span> ${text}</p>`;
+            outputContainer.scrollTop = outputContainer.scrollHeight;
+            updateStatus('PROCESSING', emotion); // Keep as processing until speech ends
+        }
+
+        function displaySources(sources) {
+            sourcesDisplay.classList.remove('hidden');
+            let sourcesHtml = '<p class="text-xs font-semibold text-gray-400 mb-1">Grounding Sources:</p>';
+            sources.forEach((source, index) => {
+                const safeTitle = source.title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                sourcesHtml += `<p class="text-xs text-gray-500 truncate"><span class="text-cyan-400">[\u2022${index + 1}]</span> <a href="${source.uri}" target="_blank" rel="noopener noreferrer" class="hover:text-cyan-300 transition duration-150">${safeTitle}</a></p>`;
+            });
+            sourcesDisplay.innerHTML = sourcesHtml;
+        }
+
+        // ==================== COMMAND HANDLER ====================
+        window.handleCommand = function(command) {
+            if (interactionTriggered) return;
+            
+            let message = '';
+            
+            switch (command) {
+                case 'NewChat':
+                    responseContent.innerHTML = `<p class="text-cyan-400 font-medium">AURA_OS v4.4 (Secure Backend Version)</p>`;
+                    message = "Starting a new conversation session. How can I help you today?";
+                    simulateInteraction(message, true);
+                    break;
+                case 'Translate':
+                    message = "Ready for translation. Please type or speak the phrase you need translated, and specify the target language.";
+                    simulateInteraction(message, true);
+                    break;
+                case 'Vision':
+                    cameraToggle.checked = !cameraToggle.checked;
+                    toggleCamera();
+                    const state = cameraToggle.checked ? 'ENABLED' : 'DISABLED';
+                    message = `AURA Vision has been ${state}.`;
+                    responseContent.innerHTML += `<p class="text-yellow-400 font-bold mt-2">AURA_COMMAND: ${message}</p>`;
+                    outputContainer.scrollTop = outputContainer.scrollHeight;
+                    break;
+                default:
+                    message = `Command "${command}" executed.`;
+                    responseContent.innerHTML += `<p class="text-gray-400 mt-2">AURA_COMMAND: ${message}</p>`;
+                    outputContainer.scrollTop = outputContainer.scrollHeight;
+            }
+        };
+
+        // ==================== ANIMATION FUNCTIONS ====================
+        function simulateBlink() {
+            if (isSpeaking) {
+                 setTimeout(simulateBlink, 1000); // Check again later
+                 return;
+            }
+
+            const delay = Math.random() * 5000 + 3000;
+
+            setTimeout(() => {
+                if (!isSpeaking) {
+                    robotFaceImg.classList.add('blinking');
+                    
+                    setTimeout(() => {
+                        robotFaceImg.classList.remove('blinking');
+                        simulateBlink();
+                    }, 50);
+                } else {
+                    simulateBlink();
+                }
+            }, delay);
+        }
+
+        function startLipSync() {
+            isSpeaking = true;
+            updateStatus('SPEAKING');
+            updateAvatarImage(currentEmotion, true);
+        }
+
+        function stopLipSync() {
+            isSpeaking = false;
+            updateAvatarImage(currentEmotion, false);
+            updateStatus('ONLINE');
+        }
+
+        async function simulateSpeech(text, emotion) {
+            console.log('🗣️ Starting simulated speech...');
+            
+            startLipSync();
+            loadingText.textContent = 'Speaking...';
+            
+            // Calculate duration based on text length (words per minute)
+            const words = text.split(' ').length;
+            const duration = Math.max(1500, Math.min(8000, words * 400)); // 1.5-8 seconds based on word count
+            
+            console.log(`⏱️ Simulated speech duration: ${duration}ms for ${words} words`);
+            
+            return new Promise(resolve => {
+                // Create mouth movement animation
+                let mouthState = false;
+                const mouthInterval = setInterval(() => {
+                    mouthState = !mouthState;
+                    updateAvatarImage(currentEmotion, mouthState);
+                }, 160); // Natural speech rhythm
+
+                setTimeout(() => {
+                    clearInterval(mouthInterval);
+                    stopLipSync();
+                    console.log('✅ Simulated speech completed');
+                    resolve(true);
+                }, duration);
+            });
+        }
+
+        // ==================== CAMERA FUNCTIONS ====================
+        async function setupCamera() {
+            if (videoStream) return;
+
+            try {
+                videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = videoStream;
+                video.classList.remove('hidden');
+                visionOutputScreen.classList.remove('hidden');
+                visionOutputScreen.classList.add('flex');
+                cameraStatus.textContent = 'Active';
+                cameraStatus.classList.remove('text-red-500');
+                cameraStatus.classList.add('text-green-500');
+                
+                video.onloadedmetadata = () => {
+                    // Initialize canvas size based on video feed
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    video.play();
+                };
+
+            } catch (err) {
+                console.error("Camera access denied or failed:", err);
+                cameraStatus.textContent = 'Denied';
+                cameraStatus.classList.remove('text-green-500');
+                cameraStatus.classList.add('text-red-500');
+                cameraToggle.checked = false;
+                videoStream = null;
+                responseContent.innerHTML += `<p class="text-red-400 font-bold mt-2">ACCESS_DENIED: Camera access failed. Error: ${err.name}</p>`;
+                
+                // Manually hide vision screen if camera fails to start
+                visionOutputScreen.classList.add('hidden');
+                visionOutputScreen.classList.remove('flex');
+            }
+        }
+
+        function stopCamera() {
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                videoStream = null;
+                video.srcObject = null;
+                video.classList.add('hidden');
+            }
+            cameraStatus.textContent = 'Disabled';
+            cameraStatus.classList.remove('text-green-500');
+            cameraStatus.classList.add('text-red-500');
+            visionOutputScreen.classList.add('hidden');
+            visionOutputScreen.classList.remove('flex');
+        }
+
+        function toggleCamera() {
+            if (cameraToggle.checked) {
+                setupCamera();
+            } else {
+                stopCamera();
+            }
+        }
+
+        function captureFrame() {
+            if (!videoStream || video.paused || video.ended) {
+                return null;
+            }
+
+            // Ensure canvas dimensions match video for clean capture
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            // Quality set to 0.8 is good balance between size and detail
+            const imageDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+            
+            // Return only the Base64 data part
+            return imageDataUrl.split(',')[1];
+        }
+
+        // ==================== SPEECH RECOGNITION ====================
+        function initializeSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            
+            if (SpeechRecognition) {
+                recognition = new SpeechRecognition();
+                recognition.continuous = false;
+                recognition.lang = 'en-US';
+                recognition.interimResults = false;
+                
+                recognition.onstart = () => {
+                    speechCaptured = false;
+                    updateStatus('LISTENING');
+                    inputField.value = '...Listening...';
+                    inputField.disabled = true;
+                    sendButton.disabled = true;
+                    updateMicButton('stop');
+                };
+
+                recognition.onresult = (event) => {
+                    const transcript = event.results[0][0].transcript;
+                    inputField.value = transcript;
+                    speechCaptured = true;
+                    inputField.disabled = false;
+                    
+                    updateStatus('ONLINE');
+                    
+                    updateMicButton('send');
+                    // recognition.stop() is often called implicitly or in onend. 
+                    // Keeping it here for explicit behavior change if result is captured.
+                    recognition.stop(); 
+                };
+
+                recognition.onerror = (event) => {
+                    let errorMsg = `Speech Recognition Error: ${event.error}`;
+                    console.error(errorMsg);
+                    
+                    if (statusDisplay.textContent === 'LISTENING') {
+                        inputField.value = '';
+                        displayError("Microphone error or timeout. Check permissions and try again.");
+                    }
+                };
+
+                recognition.onend = () => {
+                    if (statusDisplay.textContent === 'LISTENING' && !speechCaptured) {
+                        inputField.value = '';
+                        displayError('No speech was detected or captured.');
+                    }
+                    if (speechCaptured) {
+                        // Keep the 'send' button state if speech was captured
+                        updateMicButton('send'); 
+                    } else {
+                        // Reset to 'mic' state if no speech was captured
+                        updateMicButton('mic');
+                    }
+                    setUIToReady();
+                };
+
+            } else {
+                // Handle unsupported browser
+                micButton.style.display = 'none';
+                document.getElementById('voice-instruction').textContent = "Browser does not support Speech Recognition. Please use text input.";
+                recognition = null; // Ensure recognition is null if not supported
+            }
+        }
+
+        let speechCaptured = false;
+
+        window.handleMicButton = function() {
+            if (interactionTriggered || !recognition) return;
+
+            const currentMicState = getMicButtonState();
+
+            if (currentMicState === 'mic') {
+                try {
+                    recognition.start();
+                } catch (e) {
+                    if (e.name !== 'NotSupportedError') {
+                        console.error("Recognition Start Error:", e);
+                        displayError("Microphone startup failed. Please try again or refresh.");
+                    }
+                    setUIToReady();
+                }
+            } else if (currentMicState === 'stop') {
+                recognition.stop(); // This will trigger recognition.onend
+            } else if (currentMicState === 'send') {
+                simulateInteraction();
+            }
+        };
+
+        function updateMicButton(state) {
+            micIcon.classList.add('hidden');
+            stopIcon.classList.add('hidden');
+            sendIconMic.classList.add('hidden');
+
+            micButton.classList.remove('bg-green-600', 'hover:bg-green-500', 'bg-red-600', 'hover:bg-red-500', 'bg-blue-600', 'hover:bg-blue-500');
+
+            if (state === 'mic') {
+                micIcon.classList.remove('hidden');
+                micButton.classList.add('bg-green-600', 'hover:bg-green-500');
+                micButton.title = 'Start Voice Command';
+                sendButton.disabled = false;
+            } else if (state === 'stop') {
+                stopIcon.classList.remove('hidden');
+                micButton.classList.add('bg-red-600', 'hover:bg-red-500');
+                micButton.title = 'Stop Recording';
+                sendButton.disabled = true; // Disable main send button while recording
+            } else if (state === 'send') {
+                sendIconMic.classList.remove('hidden');
+                micButton.classList.add('bg-blue-600', 'hover:bg-blue-500');
+                micButton.title = 'Send Captured Text';
+                sendButton.disabled = false;
+            }
+        }
+
+        function getMicButtonState() {
+             if (!micIcon.classList.contains('hidden')) return 'mic';
+             if (!stopIcon.classList.contains('hidden')) return 'stop';
+             if (!sendIconMic.classList.contains('hidden')) return 'send';
+             return 'mic';
+        }
+
+        // ==================== GLOBAL EXPORTS ====================
+        window.simulateInteraction = simulateInteraction;
+        window.handleMicButton = handleMicButton;
+    </script>
+</body>
+</html>
