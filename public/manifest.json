@@ -1,12 +1,13 @@
 {
+    "id": "/",
     "name": "AURA AI",
     "short_name": "AURA AI",
     "description": "Advanced Unified Responsive Assistant - Your intelligent humanoid AI companion",
-    "start_url": "/",
+    "start_url": "/?source=pwa",
+    "scope": "/",
     "display": "standalone",
     "theme_color": "#00ffff",
     "background_color": "#00ffff",
-    "scope": "/",
     "dir": "ltr",
     "orientation": "any",
     "icons": [
@@ -18,7 +19,7 @@
         },
         {
             "src": "/icons/icon-512x512.png",
-            "sizes": "512x512",
+            "sizes": "512x512", 
             "type": "image/png",
             "purpose": "any maskable"
         }
