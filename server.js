@@ -13,17 +13,36 @@ app.use(express.static('public'));
 
 // Environment variables
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-// CORRECTED: Using valid Gemini model names
-const API_LLM_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
-const API_TTS_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+
+// Debug: Check if API key is loaded
+console.log('=== API KEY DEBUG ===');
+console.log('Has API Key?', !!GEMINI_API_KEY);
+if (GEMINI_API_KEY) {
+    console.log('Key length:', GEMINI_API_KEY.length);
+    console.log('First 10 chars:', GEMINI_API_KEY.substring(0, 10));
+    console.log('Contains spaces?', GEMINI_API_KEY.includes(' '));
+    console.log('Contains newline?', GEMINI_API_KEY.includes('\n'));
+}
+console.log('===================');
+
+// FIXED: Using confirmed working model - gemini-1.5-pro
+const API_LLM_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent';
+const API_TTS_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent';
 
 // Helper function for API calls with retry logic and detailed error reporting
 async function fetchWithRetry(url, payload, maxRetries = 3) {
+    // Clean the API key - remove any whitespace or quotes
+    const cleanApiKey = GEMINI_API_KEY ? GEMINI_API_KEY.trim().replace(/["']/g, '') : null;
+    
+    if (!cleanApiKey) {
+        throw new Error('GEMINI_API_KEY is not set in environment variables');
+    }
+    
     let retries = 0;
     
     while (retries < maxRetries) {
         try {
-            const response = await fetch(`${url}?key=${GEMINI_API_KEY}`, {
+            const response = await fetch(`${url}?key=${cleanApiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -70,6 +89,27 @@ async function fetchWithRetry(url, payload, maxRetries = 3) {
     throw new Error("All retry attempts failed");
 }
 
+// Function to list available models (for debugging)
+async function listAvailableModels() {
+    if (!GEMINI_API_KEY) return;
+    
+    try {
+        const cleanApiKey = GEMINI_API_KEY.trim().replace(/["']/g, '');
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${cleanApiKey}`);
+        const data = await response.json();
+        console.log('📋 Available models that support generateContent:');
+        if (data.models) {
+            data.models.forEach(model => {
+                if (model.supportedGenerationMethods?.includes('generateContent')) {
+                    console.log(`   ✅ ${model.name}`);
+                }
+            });
+        }
+    } catch (error) {
+        console.error('Failed to list models:', error.message);
+    }
+}
+
 // Text Generation Endpoint
 app.post('/api/chat', async (req, res) => {
     try {
@@ -95,8 +135,7 @@ app.post('/api/chat', async (req, res) => {
 
         const llmPayload = {
             contents: chatHistory,
-            // Commented out google_search tool as it may not be available in all versions
-            // tools: isCommand ? [] : [{ "google_search": {} }],
+            // Google Search tool removed as it may not be available in all versions
             systemInstruction: { 
                 parts: [{ 
                     text: "You are AURA, an advanced AI Humanoid Assistant. Before your response, you MUST prepend an emotion tag. Choose the most appropriate tag from: [EMOTION: NEUTRAL], [EMOTION: JOY], [EMOTION: INTEREST], or [EMOTION: CONFUSION]. Example: [EMOTION: JOY] That is a fantastic question! Now, provide your concise, professional, and helpful answer. If the user provides an image, analyze it and describe what you see before answering the question." 
@@ -207,7 +246,8 @@ app.get('/api/health', (req, res) => {
         status: 'OK', 
         timestamp: new Date().toISOString(),
         hasApiKey: !!GEMINI_API_KEY,
-        apiKeyPrefix: GEMINI_API_KEY ? GEMINI_API_KEY.substring(0, 8) + '...' : 'Missing'
+        apiKeyPrefix: GEMINI_API_KEY ? GEMINI_API_KEY.substring(0, 8) + '...' : 'Missing',
+        model: 'gemini-1.5-pro'
     });
 });
 
@@ -217,17 +257,21 @@ app.get('/', (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
-    console.log(`🚀 AURA Backend Server running on port ${PORT}`);
+app.listen(PORT, async () => {
+    console.log(`\n🚀 AURA Backend Server running on port ${PORT}`);
     console.log(`🔐 API Key Status: ${GEMINI_API_KEY ? '✅ Loaded' : '❌ Missing'}`);
     if (GEMINI_API_KEY) {
         console.log(`📝 API Key (first 8 chars): ${GEMINI_API_KEY.substring(0, 8)}...`);
+        console.log(`🤖 Using Model: gemini-1.5-pro`);
+        
+        // List available models for debugging
+        await listAvailableModels();
     }
     console.log(`🌐 Server URL: http://localhost:${PORT}`);
     console.log(`📡 API Endpoints:`);
     console.log(`   - POST /api/chat`);
     console.log(`   - POST /api/tts`);
-    console.log(`   - GET  /api/health`);
+    console.log(`   - GET  /api/health\n`);
 });
 
 // Graceful shutdown
