@@ -13,10 +13,11 @@ app.use(express.static('public'));
 
 // Environment variables
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const API_LLM_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent';
-const API_TTS_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent';
+// CORRECTED: Using valid Gemini model names
+const API_LLM_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+const API_TTS_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 
-// Helper function for API calls with retry logic
+// Helper function for API calls with retry logic and detailed error reporting
 async function fetchWithRetry(url, payload, maxRetries = 3) {
     let retries = 0;
     
@@ -30,17 +31,39 @@ async function fetchWithRetry(url, payload, maxRetries = 3) {
 
             if (response.ok) {
                 return await response.json();
-            } else if (response.status === 429 || response.status >= 500) {
-                retries++;
-                const delay = 1000 * Math.pow(2, retries);
-                await new Promise(resolve => setTimeout(resolve, delay));
             } else {
-                throw new Error(`API returned status ${response.status}`);
+                // Get detailed error message from API
+                const errorText = await response.text();
+                let errorDetail = errorText;
+                try {
+                    const errorJson = JSON.parse(errorText);
+                    errorDetail = errorJson.error?.message || errorText;
+                } catch(e) {
+                    // Keep raw text if not JSON
+                }
+                
+                if (response.status === 429) {
+                    retries++;
+                    const delay = 1000 * Math.pow(2, retries);
+                    console.log(`Rate limited, retrying in ${delay}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                } else if (response.status >= 500) {
+                    retries++;
+                    const delay = 1000 * Math.pow(2, retries);
+                    console.log(`Server error, retrying in ${delay}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                } else {
+                    throw new Error(`API returned status ${response.status}: ${errorDetail}`);
+                }
             }
         } catch (error) {
+            if (error.message.includes('API returned status')) {
+                throw error;
+            }
             retries++;
             if (retries >= maxRetries) throw error;
             const delay = 1000 * Math.pow(2, retries);
+            console.log(`Request failed, retrying in ${delay}ms...`);
             await new Promise(resolve => setTimeout(resolve, delay));
         }
     }
@@ -72,22 +95,33 @@ app.post('/api/chat', async (req, res) => {
 
         const llmPayload = {
             contents: chatHistory,
-            tools: isCommand ? [] : [{ "google_search": {} }],
+            // Commented out google_search tool as it may not be available in all versions
+            // tools: isCommand ? [] : [{ "google_search": {} }],
             systemInstruction: { 
                 parts: [{ 
                     text: "You are AURA, an advanced AI Humanoid Assistant. Before your response, you MUST prepend an emotion tag. Choose the most appropriate tag from: [EMOTION: NEUTRAL], [EMOTION: JOY], [EMOTION: INTEREST], or [EMOTION: CONFUSION]. Example: [EMOTION: JOY] That is a fantastic question! Now, provide your concise, professional, and helpful answer. If the user provides an image, analyze it and describe what you see before answering the question." 
                 }] 
             },
+            generationConfig: {
+                temperature: 0.7,
+                maxOutputTokens: 2048,
+            }
         };
 
         const responseData = await fetchWithRetry(API_LLM_URL, llmPayload);
         const candidate = responseData.candidates?.[0];
 
         if (!candidate) {
+            console.error('Invalid response structure:', JSON.stringify(responseData, null, 2));
             throw new Error("Invalid response structure from LLM");
         }
 
         const generatedText = candidate.content?.parts?.[0]?.text;
+        
+        if (!generatedText) {
+            throw new Error("No text generated from LLM");
+        }
+
         const emotionMatch = generatedText.match(/\[EMOTION: (NEUTRAL|JOY|INTEREST|CONFUSION)\]/i);
         
         const emotion = emotionMatch ? emotionMatch[1].toUpperCase() : 'NEUTRAL';
@@ -140,8 +174,7 @@ app.post('/api/tts', async (req, res) => {
                 speechConfig: {
                     voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } }
                 }
-            },
-            model: "gemini-2.5-flash-preview-tts"
+            }
         };
 
         const responseData = await fetchWithRetry(API_TTS_URL, ttsPayload);
@@ -173,7 +206,8 @@ app.get('/api/health', (req, res) => {
     res.json({ 
         status: 'OK', 
         timestamp: new Date().toISOString(),
-        hasApiKey: !!GEMINI_API_KEY
+        hasApiKey: !!GEMINI_API_KEY,
+        apiKeyPrefix: GEMINI_API_KEY ? GEMINI_API_KEY.substring(0, 8) + '...' : 'Missing'
     });
 });
 
@@ -186,7 +220,14 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
     console.log(`🚀 AURA Backend Server running on port ${PORT}`);
     console.log(`🔐 API Key Status: ${GEMINI_API_KEY ? '✅ Loaded' : '❌ Missing'}`);
+    if (GEMINI_API_KEY) {
+        console.log(`📝 API Key (first 8 chars): ${GEMINI_API_KEY.substring(0, 8)}...`);
+    }
     console.log(`🌐 Server URL: http://localhost:${PORT}`);
+    console.log(`📡 API Endpoints:`);
+    console.log(`   - POST /api/chat`);
+    console.log(`   - POST /api/tts`);
+    console.log(`   - GET  /api/health`);
 });
 
 // Graceful shutdown
