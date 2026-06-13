@@ -1,7 +1,7 @@
 // AURA System Service Worker v4.4
 const CACHE_NAME = 'aura-system-v4.4.0';
 const STATIC_CACHE = 'aura-static-v4.4.0';
-const DYNAMIC_CACHE = 'aura-dynamic-v4.4.0';
+const API_CACHE = 'aura-api-v4.4.0';  // Separate cache for APIs
 
 // Assets to cache during installation
 const STATIC_ASSETS = [
@@ -19,13 +19,6 @@ const STATIC_ASSETS = [
   '/icons/icon-384x384.png',
   '/icons/icon-512x512.png',
   '/aura-logo.svg'
-];
-
-// API endpoints to cache (read-only)
-const API_CACHE = [
-  '/api/health',
-  '/api/chat',
-  '/api/tts'
 ];
 
 // Install event - cache static assets
@@ -56,7 +49,8 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          if (cacheName !== STATIC_CACHE && cacheName !== DYNAMIC_CACHE && cacheName !== CACHE_NAME) {
+          // Keep only current caches
+          if (cacheName !== STATIC_CACHE && cacheName !== API_CACHE && cacheName !== CACHE_NAME) {
             console.log('🗑️ Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
@@ -69,31 +63,56 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch event - network first strategy for API, cache first for assets
+// Fetch event - network first for API, cache first for assets
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // API requests - Network First strategy
+  // API requests - Network First strategy (GET only)
   if (url.pathname.startsWith('/api/')) {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          // Cache successful API responses (except POST requests)
-          if (request.method === 'GET' && response.status === 200) {
-            const responseClone = response.clone();
-            caches.open(DYNAMIC_CACHE)
-              .then((cache) => {
-                cache.put(request, responseClone);
-              });
-          }
-          return response;
+    // Only cache GET requests, never POST/PUT/DELETE
+    if (request.method === 'GET') {
+      event.respondWith(
+        fetch(request)
+          .then((response) => {
+            if (response.status === 200) {
+              const responseClone = response.clone();
+              caches.open(API_CACHE)
+                .then((cache) => {
+                  cache.put(request, responseClone);
+                });
+            }
+            return response;
+          })
+          .catch(async () => {
+            // Fallback to cache when offline
+            const cachedResponse = await caches.match(request);
+            if (cachedResponse) {
+              return cachedResponse;
+            }
+            // Return error response for API
+            return new Response(JSON.stringify({ 
+              error: 'You are offline. Please check your connection.',
+              offline: true 
+            }), {
+              status: 503,
+              headers: { 'Content-Type': 'application/json' }
+            });
+          })
+      );
+    } else {
+      // POST, PUT, DELETE - never cache, always network
+      event.respondWith(
+        fetch(request).catch(() => {
+          return new Response(JSON.stringify({ 
+            error: 'Cannot perform this action while offline' 
+          }), {
+            status: 503,
+            headers: { 'Content-Type': 'application/json' }
+          });
         })
-        .catch(() => {
-          // Fallback to cache when offline
-          return caches.match(request);
-        })
-    );
+      );
+    }
     return;
   }
 
@@ -108,11 +127,10 @@ self.addEventListener('fetch', (event) => {
       caches.match(request)
         .then((cachedResponse) => {
           if (cachedResponse) {
-            // Return cached version and update cache in background
+            // Update cache in background
             fetchAndCache(request);
             return cachedResponse;
           }
-          
           // Not in cache, fetch from network
           return fetchAndCache(request);
         })
@@ -121,6 +139,7 @@ self.addEventListener('fetch', (event) => {
           if (request.destination === 'document') {
             return caches.match('/');
           }
+          return new Response('Offline', { status: 503 });
         })
     );
     return;
@@ -128,28 +147,20 @@ self.addEventListener('fetch', (event) => {
 });
 
 // Helper function to fetch and cache requests
-function fetchAndCache(request) {
-  return fetch(request)
-    .then((response) => {
-      // Check if we received a valid response
-      if (!response || response.status !== 200 || response.type !== 'basic') {
-        return response;
-      }
-
-      // Clone the response
+async function fetchAndCache(request) {
+  try {
+    const response = await fetch(request);
+    // Check if we received a valid response
+    if (response && response.status === 200) {
       const responseToCache = response.clone();
-
-      caches.open(DYNAMIC_CACHE)
-        .then((cache) => {
-          cache.put(request, responseToCache);
-        });
-
-      return response;
-    })
-    .catch((error) => {
-      console.error('Fetch failed:', error);
-      throw error;
-    });
+      const cache = await caches.open(API_CACHE);
+      await cache.put(request, responseToCache);
+    }
+    return response;
+  } catch (error) {
+    console.error('Fetch failed:', error);
+    throw error;
+  }
 }
 
 // Background sync for failed API requests
@@ -161,38 +172,43 @@ self.addEventListener('sync', (event) => {
 });
 
 async function doBackgroundSync() {
-  // Implement background sync logic for failed requests
   console.log('🔄 Performing background sync...');
+  // Implement your background sync logic here
+  // e.g., retry failed POST requests from IndexedDB
 }
 
 // Push notifications
 self.addEventListener('push', (event) => {
   if (!event.data) return;
 
-  const data = event.data.json();
-  const options = {
-    body: data.body || 'AURA System Notification',
-    icon: '/icons/icon-192x192.png',
-    badge: '/icons/badge-72x72.png',
-    vibrate: [100, 50, 100],
-    data: {
-      url: data.url || '/'
-    },
-    actions: [
-      {
-        action: 'open',
-        title: 'Open AURA'
+  try {
+    const data = event.data.json();
+    const options = {
+      body: data.body || 'AURA System Notification',
+      icon: '/icons/icon-192x192.png',
+      badge: '/icons/icon-72x72.png',  // Fixed badge path
+      vibrate: [100, 50, 100],
+      data: {
+        url: data.url || '/'
       },
-      {
-        action: 'close',
-        title: 'Dismiss'
-      }
-    ]
-  };
+      actions: [
+        {
+          action: 'open',
+          title: 'Open AURA'
+        },
+        {
+          action: 'close',
+          title: 'Dismiss'
+        }
+      ]
+    };
 
-  event.waitUntil(
-    self.registration.showNotification(data.title || 'AURA AI', options)
-  );
+    event.waitUntil(
+      self.registration.showNotification(data.title || 'AURA AI', options)
+    );
+  } catch (error) {
+    console.error('Push notification error:', error);
+  }
 });
 
 self.addEventListener('notificationclick', (event) => {
