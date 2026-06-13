@@ -20,22 +20,119 @@ console.log('Has API Key?', !!GEMINI_API_KEY);
 if (GEMINI_API_KEY) {
     console.log('Key length:', GEMINI_API_KEY.length);
     console.log('First 10 chars:', GEMINI_API_KEY.substring(0, 10));
-    console.log('Contains spaces?', GEMINI_API_KEY.includes(' '));
-    console.log('Contains newline?', GEMINI_API_KEY.includes('\n'));
 }
 console.log('===================');
 
-// FIXED: Using confirmed working model - gemini-1.5-pro
-const API_LLM_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent';
-const API_TTS_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent';
+// Global variable for working model
+let WORKING_MODEL = null;
+let API_LLM_URL = null;
+let API_TTS_URL = null;
 
-// Helper function for API calls with retry logic and detailed error reporting
+// Function to find a working model
+async function findWorkingModel() {
+    if (!GEMINI_API_KEY) return null;
+    
+    try {
+        const cleanApiKey = GEMINI_API_KEY.trim().replace(/["']/g, '');
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${cleanApiKey}`);
+        const data = await response.json();
+        
+        console.log('\n📋 Available models from Google:');
+        
+        if (data.models && Array.isArray(data.models)) {
+            // Find models that support generateContent
+            const workingModels = data.models.filter(model => 
+                model.supportedGenerationMethods && 
+                model.supportedGenerationMethods.includes('generateContent')
+            );
+            
+            if (workingModels.length === 0) {
+                console.error('❌ No models found that support generateContent');
+                return null;
+            }
+            
+            console.log(`\n✅ Found ${workingModels.length} model(s) that support generateContent:`);
+            workingModels.forEach(model => {
+                console.log(`   - ${model.name}`);
+            });
+            
+            // Use the first working model
+            const selectedModel = workingModels[0].name;
+            console.log(`\n🎯 Selected model: ${selectedModel}`);
+            
+            return selectedModel;
+        } else {
+            console.error('❌ Unexpected API response structure:', JSON.stringify(data, null, 2));
+            return null;
+        }
+    } catch (error) {
+        console.error('❌ Failed to fetch models:', error.message);
+        return null;
+    }
+}
+
+// Initialize models on startup
+async function initializeModels() {
+    const modelName = await findWorkingModel();
+    
+    if (modelName) {
+        WORKING_MODEL = modelName;
+        API_LLM_URL = `https://generativelanguage.googleapis.com/v1beta/models/${WORKING_MODEL}:generateContent`;
+        API_TTS_URL = `https://generativelanguage.googleapis.com/v1beta/models/${WORKING_MODEL}:generateContent`;
+        console.log(`\n🚀 Using model: ${WORKING_MODEL}`);
+        console.log(`📡 API URL: ${API_LLM_URL}\n`);
+        return true;
+    } else {
+        console.error('\n❌ Failed to find a working model. Using fallback model list...');
+        // Fallback to try common model names
+        const fallbackModels = [
+            'gemini-1.0-pro',
+            'gemini-pro', 
+            'gemini-1.0-pro-latest',
+            'gemini-1.0-pro-001'
+        ];
+        
+        for (const model of fallbackModels) {
+            console.log(`   Trying fallback: ${model}`);
+            WORKING_MODEL = model;
+            API_LLM_URL = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+            API_TTS_URL = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+            
+            // Test if it works
+            try {
+                const testPayload = {
+                    contents: [{ parts: [{ text: "test" }] }],
+                    generationConfig: { maxOutputTokens: 10 }
+                };
+                const cleanApiKey = GEMINI_API_KEY.trim().replace(/["']/g, '');
+                const testResponse = await fetch(`${API_LLM_URL}?key=${cleanApiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(testPayload)
+                });
+                
+                if (testResponse.ok) {
+                    console.log(`   ✅ Model ${model} works!`);
+                    return true;
+                }
+            } catch (e) {
+                // Continue to next model
+            }
+        }
+        return false;
+    }
+}
+
+// Helper function for API calls with retry logic
 async function fetchWithRetry(url, payload, maxRetries = 3) {
-    // Clean the API key - remove any whitespace or quotes
     const cleanApiKey = GEMINI_API_KEY ? GEMINI_API_KEY.trim().replace(/["']/g, '') : null;
     
     if (!cleanApiKey) {
         throw new Error('GEMINI_API_KEY is not set in environment variables');
+    }
+    
+    if (!url) {
+        throw new Error('API URL not initialized. No working model found.');
     }
     
     let retries = 0;
@@ -51,63 +148,31 @@ async function fetchWithRetry(url, payload, maxRetries = 3) {
             if (response.ok) {
                 return await response.json();
             } else {
-                // Get detailed error message from API
                 const errorText = await response.text();
                 let errorDetail = errorText;
                 try {
                     const errorJson = JSON.parse(errorText);
                     errorDetail = errorJson.error?.message || errorText;
-                } catch(e) {
-                    // Keep raw text if not JSON
-                }
+                } catch(e) {}
                 
-                if (response.status === 429) {
+                if (response.status === 429 || response.status >= 500) {
                     retries++;
                     const delay = 1000 * Math.pow(2, retries);
-                    console.log(`Rate limited, retrying in ${delay}ms...`);
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                } else if (response.status >= 500) {
-                    retries++;
-                    const delay = 1000 * Math.pow(2, retries);
-                    console.log(`Server error, retrying in ${delay}ms...`);
+                    console.log(`Retry ${retries}/${maxRetries} in ${delay}ms...`);
                     await new Promise(resolve => setTimeout(resolve, delay));
                 } else {
                     throw new Error(`API returned status ${response.status}: ${errorDetail}`);
                 }
             }
         } catch (error) {
-            if (error.message.includes('API returned status')) {
-                throw error;
-            }
+            if (error.message.includes('API returned status')) throw error;
             retries++;
             if (retries >= maxRetries) throw error;
             const delay = 1000 * Math.pow(2, retries);
-            console.log(`Request failed, retrying in ${delay}ms...`);
             await new Promise(resolve => setTimeout(resolve, delay));
         }
     }
     throw new Error("All retry attempts failed");
-}
-
-// Function to list available models (for debugging)
-async function listAvailableModels() {
-    if (!GEMINI_API_KEY) return;
-    
-    try {
-        const cleanApiKey = GEMINI_API_KEY.trim().replace(/["']/g, '');
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${cleanApiKey}`);
-        const data = await response.json();
-        console.log('📋 Available models that support generateContent:');
-        if (data.models) {
-            data.models.forEach(model => {
-                if (model.supportedGenerationMethods?.includes('generateContent')) {
-                    console.log(`   ✅ ${model.name}`);
-                }
-            });
-        }
-    } catch (error) {
-        console.error('Failed to list models:', error.message);
-    }
 }
 
 // Text Generation Endpoint
@@ -119,7 +184,13 @@ app.post('/api/chat', async (req, res) => {
             return res.status(400).json({ error: 'Message is required' });
         }
 
-        // Construct payload for Gemini
+        if (!API_LLM_URL) {
+            return res.status(503).json({ 
+                success: false, 
+                error: 'Model not initialized. Please check server logs.' 
+            });
+        }
+
         const parts = [{ text: message }];
         
         if (imageData) {
@@ -135,10 +206,9 @@ app.post('/api/chat', async (req, res) => {
 
         const llmPayload = {
             contents: chatHistory,
-            // Google Search tool removed as it may not be available in all versions
             systemInstruction: { 
                 parts: [{ 
-                    text: "You are AURA, an advanced AI Humanoid Assistant. Before your response, you MUST prepend an emotion tag. Choose the most appropriate tag from: [EMOTION: NEUTRAL], [EMOTION: JOY], [EMOTION: INTEREST], or [EMOTION: CONFUSION]. Example: [EMOTION: JOY] That is a fantastic question! Now, provide your concise, professional, and helpful answer. If the user provides an image, analyze it and describe what you see before answering the question." 
+                    text: "You are AURA, an advanced AI Humanoid Assistant. Before your response, you MUST prepend an emotion tag. Choose from: [EMOTION: NEUTRAL], [EMOTION: JOY], [EMOTION: INTEREST], or [EMOTION: CONFUSION]. Example: [EMOTION: JOY] That is a fantastic question! Now provide your concise, professional answer." 
                 }] 
             },
             generationConfig: {
@@ -151,7 +221,6 @@ app.post('/api/chat', async (req, res) => {
         const candidate = responseData.candidates?.[0];
 
         if (!candidate) {
-            console.error('Invalid response structure:', JSON.stringify(responseData, null, 2));
             throw new Error("Invalid response structure from LLM");
         }
 
@@ -162,29 +231,13 @@ app.post('/api/chat', async (req, res) => {
         }
 
         const emotionMatch = generatedText.match(/\[EMOTION: (NEUTRAL|JOY|INTEREST|CONFUSION)\]/i);
-        
         const emotion = emotionMatch ? emotionMatch[1].toUpperCase() : 'NEUTRAL';
         const cleanText = generatedText.replace(/\[EMOTION: (NEUTRAL|JOY|INTEREST|CONFUSION)\]/i, '').trim();
-
-        // Extract sources if available
-        const sources = [];
-        const groundingMetadata = candidate.groundingMetadata;
-        if (groundingMetadata && groundingMetadata.groundingAttributions) {
-            groundingMetadata.groundingAttributions.forEach(attribution => {
-                if (attribution.web?.uri && attribution.web?.title) {
-                    sources.push({
-                        uri: attribution.web.uri,
-                        title: attribution.web.title
-                    });
-                }
-            });
-        }
 
         res.json({
             success: true,
             text: cleanText,
             emotion: emotion,
-            sources: sources,
             hasImage: !!imageData
         });
 
@@ -197,57 +250,14 @@ app.post('/api/chat', async (req, res) => {
     }
 });
 
-// Text-to-Speech Endpoint
-app.post('/api/tts', async (req, res) => {
-    try {
-        const { text } = req.body;
-
-        if (!text) {
-            return res.status(400).json({ error: 'Text is required for TTS' });
-        }
-
-        const ttsPayload = {
-            contents: [{ parts: [{ text }] }],
-            generationConfig: {
-                responseModalities: ["AUDIO"],
-                speechConfig: {
-                    voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } }
-                }
-            }
-        };
-
-        const responseData = await fetchWithRetry(API_TTS_URL, ttsPayload);
-        const part = responseData?.candidates?.[0]?.content?.parts?.[0];
-        const audioData = part?.inlineData?.data;
-        const mimeType = part?.inlineData?.mimeType;
-
-        if (!audioData || !mimeType) {
-            throw new Error("TTS failed to generate audio data");
-        }
-
-        res.json({
-            success: true,
-            audioData: audioData,
-            mimeType: mimeType
-        });
-
-    } catch (error) {
-        console.error('TTS API Error:', error);
-        res.status(500).json({ 
-            success: false, 
-            error: error.message || 'TTS generation failed' 
-        });
-    }
-});
-
 // Health check endpoint
 app.get('/api/health', (req, res) => {
     res.json({ 
         status: 'OK', 
         timestamp: new Date().toISOString(),
         hasApiKey: !!GEMINI_API_KEY,
-        apiKeyPrefix: GEMINI_API_KEY ? GEMINI_API_KEY.substring(0, 8) + '...' : 'Missing',
-        model: 'gemini-1.5-pro'
+        workingModel: WORKING_MODEL || 'Not initialized',
+        apiUrl: API_LLM_URL || 'Not set'
     });
 });
 
@@ -260,21 +270,18 @@ app.get('/', (req, res) => {
 app.listen(PORT, async () => {
     console.log(`\n🚀 AURA Backend Server running on port ${PORT}`);
     console.log(`🔐 API Key Status: ${GEMINI_API_KEY ? '✅ Loaded' : '❌ Missing'}`);
+    
     if (GEMINI_API_KEY) {
         console.log(`📝 API Key (first 8 chars): ${GEMINI_API_KEY.substring(0, 8)}...`);
-        console.log(`🤖 Using Model: gemini-1.5-pro`);
-        
-        // List available models for debugging
-        await listAvailableModels();
+        await initializeModels();
     }
-    console.log(`🌐 Server URL: http://localhost:${PORT}`);
+    
+    console.log(`\n🌐 Server URL: http://localhost:${PORT}`);
     console.log(`📡 API Endpoints:`);
     console.log(`   - POST /api/chat`);
-    console.log(`   - POST /api/tts`);
     console.log(`   - GET  /api/health\n`);
 });
 
-// Graceful shutdown
 process.on('SIGTERM', () => {
     console.log('SIGTERM received, shutting down gracefully');
     process.exit(0);
