@@ -86,7 +86,7 @@ async function initializeModels() {
         console.error('\n❌ Failed to find a working model. Using fallback model list...');
         // Fallback to try common model names
         const fallbackModels = [
-            'gemini-1.0-pro',
+            'gemini-2.5-pro',
             'gemini-pro', 
             'gemini-1.0-pro-latest',
             'gemini-1.0-pro-001'
