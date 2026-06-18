@@ -127,7 +127,7 @@ async function initializeModels() {
         console.log('💡 Tips:');
         console.log('   1. Check your GEMINI_API_KEY in .env file');
         console.log('   2. Make sure you have access to Gemini API');
-        console.log('   3. Try using: gemini-1.5-pro or gemini-1.5-flash\n');
+        console.log('   3. Try using: gemini-2.5-pro or gemini-1.5-flash\n');
         return false;
     }
 }
