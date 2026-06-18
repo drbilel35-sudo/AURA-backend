@@ -24,7 +24,7 @@ if (GEMINI_API_KEY) {
 console.log('===================');
 
 // Fixed working model - using stable, confirmed model
-const WORKING_MODEL = "gemini-1.5-pro";
+const WORKING_MODEL = "gemini-pro";
 let API_LLM_URL = null;
 let API_TTS_URL = null;
 let API_READY = false;
